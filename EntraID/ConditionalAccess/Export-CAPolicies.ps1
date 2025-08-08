@@ -99,7 +99,7 @@ $global:DirectoryObjsHash = @{}
 $global:ServicePrincipalsHash = @{}
 $global:NamedLocationHash = @{}
 
-function Initialize-MgGraphConnection {
+function Connect-MgGraphSession {
     if ($CreateSession.IsPresent) {
         Disconnect-MgGraph -ErrorAction SilentlyContinue
     }
@@ -113,9 +113,9 @@ function Initialize-MgGraphConnection {
     }
 }
 
-Initialize-MgGraphConnection
+Connect-MgGraphSession
 
-function ConvertTo-Name {
+function ConvertTo-DirectoryObjectName {
     param(
         [Parameter(Mandatory = $true)]
         [Array]$InputIds
@@ -311,28 +311,28 @@ $AllPolicies | ForEach-Object {
 
     #Convert id to names for Assignment properties
     if ($IncludeUsers.Count -ne 0 -and ($IncludeUsers -ne 'All' -and $IncludeUsers -ne 'None' )) {
-        $IncludeUsers = ConvertTo-Name -InputIds $IncludeUsers
+        $IncludeUsers = ConvertTo-DirectoryObjectName -InputIds $IncludeUsers
     }
     $IncludeUsers = Join-Array $IncludeUsers
 
     if (($ExcludeUsers.Count -ne 0) -and ($ExcludeUsers -ne 'GuestsOrExternalUsers'  )) {
-        $ExcludeUsers = ConvertTo-Name -InputIds $ExcludeUsers
+        $ExcludeUsers = ConvertTo-DirectoryObjectName -InputIds $ExcludeUsers
     }
     $ExcludeUsers = Join-Array $ExcludeUsers
     if ($IncludeGroups.Count -ne 0) {
-        $IncludeGroups = ConvertTo-Name -InputIds $IncludeGroups
+        $IncludeGroups = ConvertTo-DirectoryObjectName -InputIds $IncludeGroups
     }
     $IncludeGroups = Join-Array $IncludeGroups
     if ($ExcludeGroups.Count -ne 0) {
-        $ExcludeGroups = ConvertTo-Name -InputIds $ExcludeGroups
+        $ExcludeGroups = ConvertTo-DirectoryObjectName -InputIds $ExcludeGroups
     }
     $ExcludeGroups = Join-Array $ExcludeGroups
     if ($IncludeRoles.Count -ne 0 -and ($IncludeRoles -ne 'All' -and $IncludeRoles -ne 'None' )) {
-        $IncludeRoles = ConvertTo-Name -InputIds $IncludeRoles
+        $IncludeRoles = ConvertTo-DirectoryObjectName -InputIds $IncludeRoles
     }
     $IncludeRoles = Join-Array $IncludeRoles
     if ($ExcludeRoles.Count -ne 0) {
-        $ExcludeRoles = ConvertTo-Name -InputIds $ExcludeRoles
+        $ExcludeRoles = ConvertTo-DirectoryObjectName -InputIds $ExcludeRoles
     }
     $ExcludeRoles = Join-Array $ExcludeRoles
 
