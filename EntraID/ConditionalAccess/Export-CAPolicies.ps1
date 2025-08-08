@@ -58,7 +58,10 @@ param
     [switch]$CreateSession,
     [string]$TenantId,
     [string]$ClientId,
-    [string]$CertificateThumbprint
+    [string]$CertificateThumbprint,
+    [string]$OutputDirectory = "$PSScriptRoot\Output",
+    [string]$OutputFileName = "CA_Policies_Report_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
+
 )
 
 $RequiredModules = @('Microsoft.Graph.Beta')
@@ -178,8 +181,10 @@ function Get-NamedLocationDisplayName {
 }
 
 #Prep
-$Location = Get-Location
-$ExportCSV = "$Location\CA_Policies_Report_$((Get-Date -Format yyyy-MMM-dd-ddd` hh-mm` tt).ToString()).csv"
+if (-not (Test-Path -Path $OutputDirectory)) {
+    New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+}
+$ExportCSV = Join-Path -Path $OutputDirectory -ChildPath $OutputFileName
 $Result = ""
 $Results = @()
 $ProcessedCount = 0
