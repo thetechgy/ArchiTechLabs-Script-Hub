@@ -336,7 +336,18 @@ Get-MgBetaIdentityConditionalAccessPolicy -All | ForEach-Object {
     $CAEMode = $_.SessionControls.ContinuousAccessEvaluation.Mode
     $DisableResilienceDefaults = $_.SessionControls.DisableResilienceDefaults
     $IsSigninFrequencyEnabled = $_.SessionControls.SignInFrequency.IsEnabled
-    $SignInFrequencyValue = "$($_.SessionControls.SignInFrequency.Value) $($_.SessionControls.SignInFrequency.Type)"
+    if ($IsSigninFrequencyEnabled) {
+        $Value = $_.SessionControls.SignInFrequency.Value
+        $Type = $_.SessionControls.SignInFrequency.Type
+
+        if ($null -eq $Value -and $null -eq $Type) {
+            $SignInFrequencyValue = "Every time"
+        } else {
+            $SignInFrequencyValue = "$Value $Type"
+        }
+    } else {
+        $SignInFrequencyValue = ""
+    }
 
 
 
