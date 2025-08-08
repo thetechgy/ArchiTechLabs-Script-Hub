@@ -1,51 +1,53 @@
 <#
 .SYNOPSIS
-    Export Microsoft Entra ID (Azure AD) Conditional Access (CA) policies—with 33
-    detailed attributes—to a timestamped CSV file for audit, compliance, and reporting.
+    Export Conditional Access (CA) policies from Microsoft Entra ID (Azure AD) to a structured CSV file.
 .DESCRIPTION
-    This script connects to Microsoft Graph (beta) and exports Conditional Access
-    policies in your tenant into a single CSV. Out-of-the-box it supports:
-      • Six report types covering 33 attributes for deep policy analysis
-      • All policies (default), Active (enabled), Disabled, Report-only mode
-      • Time-based filters: recently created or modified policies
-      • Interactive MFA or certificate-based authentication
-      • Automatic installation of the Graph Beta module if missing
-      • Scheduler-friendly, non-GUI operation with optional “open file” prompt
+    This script uses Microsoft Graph (beta) to extract Conditional Access policy configurations into a timestamped CSV report for audit, compliance, and operational insight.
+
+    Features:
+      • Filters: Active, Disabled, Report-Only, recently created or modified
+      • Output: CSV file with 30+ core CA policy attributes
+      • Column handling: Optional exclusion of empty columns
+      • Authentication: Supports interactive and certificate-based Graph auth
+      • Progress: Includes progress bar with per-policy feedback
+      • Performance: Caches display names and uses optimized object creation
+      • Reliability: Verifies module presence and avoids redundant imports
 .PARAMETER ActiveCAPoliciesOnly
-    Switch – export only policies whose **State** is *Enabled*.
+    Only include policies whose State is Enabled.
 .PARAMETER DisabledCAPoliciesOnly
-    Switch – export only policies whose **State** is *Disabled*.
+    Only include policies whose State is Disabled.
 .PARAMETER ReportOnlyMode
-    Switch – export only policies whose **State** is *EnabledForReportingButNotEnforced*.
+    Only include policies in report-only mode.
 .PARAMETER RecentlyCreatedCAPolicies
-    Integer – include only those policies created in the past *N* days.
+    Include only policies created within the past N days.
 .PARAMETER RecentlyModifiedCAPolicies
-    Integer – include only those policies modified in the past *N* days.
+    Include only policies modified within the past N days.
 .PARAMETER CreateSession
-    Switch – disconnect any existing Microsoft Graph session before reconnecting.
+    Force disconnection and re-authentication to Microsoft Graph.
 .PARAMETER TenantId
-    String – Azure AD tenant GUID (required for certificate-based/app-only auth).
+    Directory (tenant) ID for Graph auth (used with ClientId and CertificateThumbprint).
 .PARAMETER ClientId
-    String – Application (client) ID for certificate-based authentication.
+    Application (client) ID for certificate-based Graph auth.
 .PARAMETER CertificateThumbprint
-    String – Thumbprint of the certificate associated with the ClientId.
+    Thumbprint of the certificate used for app-only authentication.
+.PARAMETER OutputDirectory
+    Directory path for the generated CSV file. Default: "$PSScriptRoot\Output"
+.PARAMETER OutputFileName
+    File name for the output. Default: "CA_Policies_Report_<timestamp>.csv"
+.PARAMETER IncludeEmptyColumns
+    Switch to include columns that are empty across all results.
 .NOTES
     Author: Travis McDade
-    Date: 08/08/2025
-    Version: 0.2.0
-    Original Source
-        Author : RapidScripter
-        URL    : https://github.com/RapidScripter/export-conditional-access-policies
-        Script : Export-CAPolicies.ps1
+    Last Updated: 08/08/2025
+    Version: 0.4.0
+    Original Source:
+        Author: RapidScripter
+        URL   : https://github.com/RapidScripter/export-conditional-access-policies
 Revision History:
-      0.2.0 – 08/08/2025 – Initial adaptation and add attribution.
-      0.1.0 – 06/30/2024 – Upstream version by RapidScripter.
-Future Enhancements:
-      - None
-Known Issues:
-      - None
-Resources:
-      - None
+    0.4.0 – 08/08/2025 – Refactor for efficiency, object creation, join-logic, header handling
+    0.3.0 – 08/07/2025 – Column pruning and ordered header logic
+    0.2.0 – 08/06/2025 – Progress integration and parameter enhancements
+    0.1.0 – 06/30/2024 – Initial version from upstream
 #>
 
 param
