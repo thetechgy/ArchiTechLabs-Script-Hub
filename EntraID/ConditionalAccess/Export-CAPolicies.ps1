@@ -181,6 +181,11 @@ function Get-NamedLocationDisplayName {
     return $ConvertedNames
 }
 
+function Join-Array {
+    param ([array]$Values)
+    return ($Values -join ',')
+}
+
 #Prep
 if (-not (Test-Path -Path $OutputDirectory)) {
     New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
@@ -199,7 +204,7 @@ if (-not $IncludeEmptyColumns) {
         'Include Device Platform', 'Exclude Device Platform',
         'Client Apps', 'Signin Risk',
         'Access Control', 'Access Control Operator',
-        'Authentication Strength', 'Auth Strength Allowed Combo',
+        'Authentication Strength',
         'Signin Frequency Value',
         'Creation Time', 'Modified Time'
     )
@@ -229,7 +234,7 @@ if (-not $IncludeEmptyColumns) {
         'Include Applications', 'Exclude Applications', 'User Action', 'User Risk',
         'Signin Risk', 'Client Apps', 'Include Device Platform', 'Exclude Device Platform',
         'Include Locations', 'Exclude Locations', 'Access Control', 'Access Control Operator',
-        'Authentication Strength', 'Auth Strength Allowed Combo',
+        'Authentication Strength',
         'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode',
         'Disable Resilience Defaults', 'Is Signin Frequency Enabled', 'Signin Frequency Value'
     )
@@ -268,13 +273,13 @@ $AllPolicies | ForEach-Object {
     }
 
     #Calculating recently created and modified days
-    if ($CreationTime -eq $null) {
+    if ($null -eq $CreationTime) {
         $CreationTime = "-"
     } else {
         $CreatedInDays = (New-TimeSpan -Start $CreationTime).Days
     }
 
-    if ($LastModifiedTime -eq $null) {
+    if ($null -eq $LastModifiedTime) {
         $LastModifiedTime = "-"
     } else {
         $ModifiedInDays = (New-TimeSpan -Start $LastModifiedTime).Days
@@ -306,31 +311,31 @@ $AllPolicies | ForEach-Object {
     if ($IncludeUsers.Count -ne 0 -and ($IncludeUsers -ne 'All' -and $IncludeUsers -ne 'None' )) {
         $IncludeUsers = ConvertTo-Name -InputIds $IncludeUsers
     }
-    $IncludeUsers = $IncludeUsers -join ","
+    $IncludeUsers = Join-Array $IncludeUsers
 
     if (($ExcludeUsers.Count -ne 0) -and ($ExcludeUsers -ne 'GuestsOrExternalUsers'  )) {
         $ExcludeUsers = ConvertTo-Name -InputIds $ExcludeUsers
     }
-    $ExcludeUsers = $ExcludeUsers -join ","
+    $ExcludeUsers = Join-Array $ExcludeUsers
     if ($IncludeGroups.Count -ne 0) {
         $IncludeGroups = ConvertTo-Name -InputIds $IncludeGroups
     }
-    $IncludeGroups = $IncludeGroups -join ","
+    $IncludeGroups = Join-Array $IncludeGroups
     if ($ExcludeGroups.Count -ne 0) {
         $ExcludeGroups = ConvertTo-Name -InputIds $ExcludeGroups
     }
-    $ExcludeGroups = $ExcludeGroups -join ","
+    $ExcludeGroups = Join-Array $ExcludeGroups
     if ($IncludeRoles.Count -ne 0 -and ($IncludeRoles -ne 'All' -and $IncludeRoles -ne 'None' )) {
         $IncludeRoles = ConvertTo-Name -InputIds $IncludeRoles
     }
-    $IncludeRoles = $IncludeRoles -join ","
+    $IncludeRoles = Join-Array $IncludeRoles
     if ($ExcludeRoles.Count -ne 0) {
         $ExcludeRoles = ConvertTo-Name -InputIds $ExcludeRoles
     }
-    $ExcludeRoles = $ExcludeRoles -join ","
+    $ExcludeRoles = Join-Array $ExcludeRoles
 
-    $IncludeGuestsOrExtUsers = $IncludeGuestsOrExtUsers -join ","
-    $ExcludeGuestsOrExtUsers = $ExcludeGuestsOrExtUsers -join ","
+    $IncludeGuestsOrExtUsers = Join-Array $IncludeGuestsOrExtUsers
+    $ExcludeGuestsOrExtUsers = Join-Array $ExcludeGuestsOrExtUsers
 
 
 
@@ -338,17 +343,17 @@ $AllPolicies | ForEach-Object {
     $IncludeApplications = $_.Conditions.Applications.IncludeApplications
     $ExcludeApplications = $_.Conditions.Applications.ExcludeApplications
     $UserAction = $_.Conditions.Applications.IncludeUserActions
-    $UserAction = $UserAction -join ","
+    $UserAction = Join-Array $UserAction
 
     #Convert id to names for Target resource properties
     if ($IncludeApplications.Count -ne 0 -and ($IncludeApplications -ne 'All' -and $IncludeApplications -ne 'None' )) {
         $IncludeApplications = Get-ServicePrincipalDisplayName -InputIds $IncludeApplications
     }
-    $IncludeApplications = $IncludeApplications -join ","
+    $IncludeApplications = Join-Array $IncludeApplications
     if ($ExcludeApplications.Count -ne 0) {
         $ExcludeApplications = Get-ServicePrincipalDisplayName -InputIds $ExcludeApplications
     }
-    $ExcludeApplications = $ExcludeApplications -join ","
+    $ExcludeApplications = Join-Array $ExcludeApplications
 
 
 
@@ -361,22 +366,22 @@ $AllPolicies | ForEach-Object {
     $IncludeLocations = $_.Conditions.Locations.IncludeLocations
     $ExcludeLocations = $_.Conditions.Locations.ExcludeLocations
 
-    $UserRisk = $UserRisk -join ","
-    $SigninRisk = $SigninRisk -join ","
-    $ClientApps = $ClientApps -join ","
-    $IncludeDevicePlatform = $IncludeDevicePlatform -join ","
-    $ExcludeDevicePlatform = $ExcludeDevicePlatform -join ","
+    $UserRisk = Join-Array $UserRisk
+    $SigninRisk = Join-Array $SigninRisk
+    $ClientApps = Join-Array $ClientApps
+    $IncludeDevicePlatform = Join-Array $IncludeDevicePlatform
+    $ExcludeDevicePlatform = Join-Array $ExcludeDevicePlatform
 
     #Convert location id to Name
     if ($IncludeLocations.Count -ne 0 -and $IncludeLocations -ne 'All' -and $IncludeLocations -ne 'AllTrusted') {
         $IncludeLocations = Get-NamedLocationDisplayName -InputIds $IncludeLocations
     }
-    $IncludeLocations = $IncludeLocations -join ","
+    $IncludeLocations = Join-Array $IncludeLocations
 
     if ($ExcludeLocations.Count -ne 0) {
         $ExcludeLocations = Get-NamedLocationDisplayName -InputIds $ExcludeLocations
     }
-    $ExcludeLocations = $ExcludeLocations -join ","
+    $ExcludeLocations = Join-Array $ExcludeLocations
 
 
 
@@ -384,7 +389,6 @@ $AllPolicies | ForEach-Object {
     $AccessControl = $_.GrantControls.BuiltInControls -join ","
     $AccessControlOperator = $_.GrantControls.Operator
     $AuthenticationStrength = $_.GrantControls.AuthenticationStrength.DisplayName
-    $AuthenticationStrengthAllowedCombo = $_.GrantControls.AuthenticationStrength.AllowedCombinations -join ","
 
     #Session Control
     $AppEnforcedRestrictions = $_.SessionControls.ApplicationEnforcedRestrictions.IsEnabled
@@ -433,7 +437,6 @@ $AllPolicies | ForEach-Object {
         'Access Control'                    = $AccessControl;
         'Access Control Operator'           = $AccessControlOperator;
         'Authentication Strength'           = $AuthenticationStrength;
-        'Auth Strength Allowed Combo'       = $AuthenticationStrengthAllowedCombo;
         'App Enforced Restrictions Enabled' = $AppEnforcedRestrictions;
         'Cloud App Security'                = $CloudAppSecurity;
         'CAE Mode'                          = $CAEMode;
@@ -442,7 +445,7 @@ $AllPolicies | ForEach-Object {
         'Signin Frequency Value'            = $SignInFrequencyValue;
         'State'                             = $State
     }
-    $Results += New-Object PSObject -Property $Result
+    $Results += [pscustomobject]$Result
 }
 
 
