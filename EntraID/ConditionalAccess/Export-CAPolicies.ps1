@@ -389,14 +389,7 @@ if ($OutputCount -eq 0) {
 } else {
     Write-Host `nThe output file contains $OutputCount CA policies.
     if ((Test-Path -Path $ExportCSV) -eq "True") {
-        Write-Host `nThe Output file available in:  -NoNewline -ForegroundColor Yellow
+        Write-Host `nThe Output file available at:  -NoNewline -ForegroundColor Yellow
         Write-Host $ExportCSV
-
-        $Prompt = New-Object -ComObject wscript.shell
-        $UserInput = $Prompt.popup("Do you want to open output file?", `
-                0, "Open Output File", 4)
-        if ($UserInput -eq 6) {
-            Invoke-Item "$ExportCSV"
-        }
     }
 }
