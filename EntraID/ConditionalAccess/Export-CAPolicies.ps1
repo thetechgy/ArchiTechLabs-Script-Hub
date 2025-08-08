@@ -190,15 +190,18 @@ $Results = @()
 
 if (-not $IncludeEmptyColumns) {
     $orderedHeaders = @(
-        'CA Policy Name', 'Description', 'Creation Time', 'Modified Time', 'State',
-        'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
-        'Include Roles', 'Exclude Roles', 'Include Guests or Ext Users', 'Exclude Guests or Ext Users',
-        'Include Applications', 'Exclude Applications', 'User Action', 'User Risk',
-        'Signin Risk', 'Client Apps', 'Include Device Platform', 'Exclude Device Platform',
-        'Include Locations', 'Exclude Locations', 'Access Control', 'Access Control Operator',
+        'CA Policy Name', 'State',
+        'Include Users', 'Exclude Users',
+        'Include Groups', 'Exclude Groups',
+        'Include Roles',
+        'Include Applications', 'Exclude Applications',
+        'Include Locations', 'Exclude Locations',
+        'Include Device Platform', 'Exclude Device Platform',
+        'Client Apps', 'Signin Risk',
+        'Access Control', 'Access Control Operator',
         'Authentication Strength', 'Auth Strength Allowed Combo',
-        'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode',
-        'Disable Resilience Defaults', 'Is Signin Frequency Enabled', 'Signin Frequency Value'
+        'Signin Frequency Value',
+        'Creation Time', 'Modified Time'
     )
     $nonEmptyProps = @()
     $allProps = $Results[0].PSObject.Properties.Name
