@@ -236,22 +236,24 @@ if (-not $IncludeEmptyColumns) {
 $ProcessedCount = 0
 $OutputCount = 0
 #Get all service principals
-Write-Progress -Activity "`n     Retrieving service principals..."
+Write-Host "[+] Retrieving service principals..."
 $ServicePrincipalsHash = Get-MgBetaServicePrincipal -All | Group-Object -Property AppId -AsHashTable
-Write-Progress -Activity "`n     Retrieving named location..."
+Write-Host "[+] Retrieving named locations..."
 $NamedLocationHash = Get-MgBetaIdentityConditionalAccessNamedLocation -All | Group-Object -Property Id -AsHashTable
 Write-Host "Exporting CA policies report..." -ForegroundColor Cyan
 
 
-#Processing all CA polcies
-Get-MgBetaIdentityConditionalAccessPolicy -All | ForEach-Object {
+#Processing all CA policies
+$AllPolicies = Get-MgBetaIdentityConditionalAccessPolicy -All
+$total = $AllPolicies.Count
+$AllPolicies | ForEach-Object {
     $ProcessedCount++
     $CAName = $_.DisplayName
     $Description = $_.Description
     $CreationTime = $_.CreatedDateTime
     $LastModifiedTime = $_.ModifiedDateTime
     $State = $_.State
-    Write-Progress -Activity "`n     Processed CA policies count: $ProcessedCount "`n"  Currently Processing: $CAName"
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Status "Processing: $CAName" -PercentComplete (($ProcessedCount / $total) * 100)
 
     #Filter CA policies based on their State
     if ($ActiveCAPoliciesOnly.IsPresent -and $State -ne "Enabled") {
