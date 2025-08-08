@@ -239,11 +239,11 @@ if (-not $IncludeEmptyColumns) {
 $ProcessedCount = 0
 $OutputCount = 0
 #Get all service principals
-Write-Host "[+] Retrieving service principals..."
+Write-Progress -Activity "Initializing" -Status "Retrieving service principals..." -PercentComplete 10
 $ServicePrincipalsHash = Get-MgBetaServicePrincipal -All | Group-Object -Property AppId -AsHashTable
-Write-Host "[+] Retrieving named locations..."
+Write-Progress -Activity "Initializing" -Status "Retrieving named locations..." -PercentComplete 20
 $NamedLocationHash = Get-MgBetaIdentityConditionalAccessNamedLocation -All | Group-Object -Property Id -AsHashTable
-Write-Host "Exporting CA policies report..." -ForegroundColor Cyan
+Write-Progress -Activity "Exporting" -Status "Retrieving CA policies..." -PercentComplete 30
 
 
 #Processing all CA policies
@@ -468,9 +468,9 @@ if ($Results.Count -eq 0) {
     } else {
         $Results | Export-Csv -Path $ExportCSV -NoTypeInformation
     }
-    Write-Host "`nThe output file contains $($Results.Count) CA policies."
+    Write-Host "The output file contains $($Results.Count) CA policies."
     if ((Test-Path -Path $ExportCSV) -eq $true) {
-        Write-Host "`nThe Output file available at: " -NoNewline -ForegroundColor Yellow
+        Write-Host "The output file is available at: " -ForegroundColor Yellow
         Write-Host $ExportCSV
     }
 }
