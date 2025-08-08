@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "ms-vscode.powershell",
+    "eamodio.gitlens",
+    "editorconfig.editorconfig",
+    "pspester.pester-test",
+    "yzhang.markdown-all-in-one",
+    "redhat.vscode-yaml",
+    "mutantdino.resourcemonitor",
+    "zainchen.json",
+    "janisdd.vscode-edit-csv",
+    "dotjoshjohnson.xml",
+    "IBM.output-colorizer",
+    "davidanson.vscode-markdownlint"
+  ]
+}
