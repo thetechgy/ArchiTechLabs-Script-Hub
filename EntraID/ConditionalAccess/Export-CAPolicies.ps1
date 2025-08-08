@@ -61,42 +61,53 @@ param
     [string]$CertificateThumbprint
 )
 
+$RequiredModules = @('Microsoft.Graph.Beta')
+
+foreach ($mod in $RequiredModules) {
+    if (-not (Get-Module -ListAvailable -Name $mod)) {
+        Write-Host "Module '$mod' not found. Installing..." -ForegroundColor Yellow
+        Install-Module -Name $mod -Scope CurrentUser -Force -ErrorAction Stop -Confirm:$false
+    } else {
+        Write-Host "Module '$mod' is already available."
+    }
+}
+
+# Explicitly import only required submodules to avoid lazy-load assembly conflicts
+$RequiredSubmodules = @(
+    'Microsoft.Graph.Beta.Applications',
+    'Microsoft.Graph.Beta.Identity.SignIns'
+)
+
+foreach ($sub in $RequiredSubmodules) {
+    try {
+        Import-Module -Name $sub -ErrorAction Stop
+    } catch {
+        Write-Error ("Failed to import Graph submodule {0}: {1}" -f $sub, $_.Exception.Message)
+        exit 1
+    }
+}
+
+
 
 $global:DirectoryObjsHash = @{}
 $global:ServicePrincipalsHash = @{}
 $global:NamedLocationHash = @{}
-function Connect_MgGraph {
-    $MsGraphBetaModule = Get-Module Microsoft.Graph.Beta -ListAvailable
-    if ($null -eq $MsGraphBetaModule) {
-        Write-Host "Important: Microsoft Graph Beta module is unavailable. It is mandatory to have this module installed in the system to run the script successfully."
-        $confirm = Read-Host Are you sure you want to install Microsoft Graph Beta module? [Y] Yes [N] No
-        if ($confirm -match "[yY]") {
-            Write-Host "Installing Microsoft Graph Beta module..."
-            Install-Module Microsoft.Graph.Beta -Scope CurrentUser -AllowClobber
-            Write-Host "Microsoft Graph Beta module is installed in the machine successfully" -ForegroundColor Magenta
-        }
-        else {
-            Write-Host "Exiting. `nNote: Microsoft Graph Beta module must be available in your system to run the script" -ForegroundColor Red
-            exit
-        }
-    }
-    #Disconnect Existing MgGraph session
+
+function Initialize-MgGraphConnection {
     if ($CreateSession.IsPresent) {
-        Disconnect-MgGraph
+        Disconnect-MgGraph -ErrorAction SilentlyContinue
     }
-    #Connecting to MgGraph beta
-    Write-Host Connecting to Microsoft Graph...
-    if (($TenantId -ne "") -and ($ClientId -ne "") -and ($CertificateThumbprint -ne "")) {
-        Connect-MgGraph  -TenantId $TenantId -AppId $ClientId -CertificateThumbprint $CertificateThumbprint
-    }
-    else {
-        Connect-MgGraph -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Application.Read.All'  -NoWelcome
+
+    Write-Host "Connecting to Microsoft Graph..."
+
+    if ($TenantId -and $ClientId -and $CertificateThumbprint) {
+        Connect-MgGraph -TenantId $TenantId -AppId $ClientId -CertificateThumbprint $CertificateThumbprint -NoWelcome
+    } else {
+        Connect-MgGraph -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Application.Read.All' -NoWelcome
     }
 }
-Connect_MgGraph
 
-
-
+Initialize-MgGraphConnection
 
 function ConvertTo-Name {
     param(
@@ -121,8 +132,7 @@ function ConvertTo-Name {
                     $ConvertedNames += $Name
 
                 }
-            }
-            catch {
+            } catch {
                 Write-Host "Deleted object configured in the CA policy $CAName" -ForegroundColor Red
                 Write-Host "Processing CA policies..."
             }
@@ -142,8 +152,7 @@ function Get-ServicePrincipalDisplayName {
         # Check Id-Name pair already exist in hash table
         if ($ServicePrincipalsHash.ContainsKey($Id)) {
             $Name = $ServicePrincipalsHash[$Id].DisplayName
-        }
-        else
+        } else
         { $Name = $Id }
         $ConvertedNames += $Name
     }
@@ -161,8 +170,7 @@ function Get-NamedLocationDisplayName {
         # Check Id-Name pair already exist in hash table
         if ($NamedLocationHash.ContainsKey($Id)) {
             $Name = $NamedLocationHash[$Id].DisplayName
-        }
-        else
+        } else
         { $Name = $Id }
         $ConvertedNames += $Name
     }
@@ -197,26 +205,22 @@ Get-MgBetaIdentityConditionalAccessPolicy -All | ForEach-Object {
     #Filter CA policies based on their State
     if ($ActiveCAPoliciesOnly.IsPresent -and $State -ne "Enabled") {
         return
-    }
-    elseif ($DisabledCAPoliciesOnly.IsPresent -and $State -ne "Disabled" ) {
+    } elseif ($DisabledCAPoliciesOnly.IsPresent -and $State -ne "Disabled" ) {
         return
-    }
-    elseif ($ReportOnlyMode.IsPresent -and $State -ne "EnabledForReportingButNotEnforced") {
+    } elseif ($ReportOnlyMode.IsPresent -and $State -ne "EnabledForReportingButNotEnforced") {
         return
     }
 
     #Calculating recently created and modified days
     if ($CreationTime -eq $null) {
         $CreationTime = "-"
-    }
-    else {
+    } else {
         $CreatedInDays = (New-TimeSpan -Start $CreationTime).Days
     }
 
     if ($LastModifiedTime -eq $null) {
         $LastModifiedTime = "-"
-    }
-    else {
+    } else {
         $ModifiedInDays = (New-TimeSpan -Start $LastModifiedTime).Days
     }
 
@@ -382,8 +386,7 @@ Get-MgBetaIdentityConditionalAccessPolicy -All | ForEach-Object {
 #Open output file after execution
 if ($OutputCount -eq 0) {
     Write-Host No data found for the given criteria
-}
-else {
+} else {
     Write-Host `nThe output file contains $OutputCount CA policies.
     if ((Test-Path -Path $ExportCSV) -eq "True") {
         Write-Host `nThe Output file available in:  -NoNewline -ForegroundColor Yellow
