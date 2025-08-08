@@ -60,7 +60,8 @@ param
     [string]$ClientId,
     [string]$CertificateThumbprint,
     [string]$OutputDirectory = "$PSScriptRoot\Output",
-    [string]$OutputFileName = "CA_Policies_Report_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
+    [string]$OutputFileName = "CA_Policies_Report_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv",
+    [switch]$IncludeEmptyColumns
 
 )
 
@@ -185,8 +186,53 @@ if (-not (Test-Path -Path $OutputDirectory)) {
     New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
 }
 $ExportCSV = Join-Path -Path $OutputDirectory -ChildPath $OutputFileName
-$Result = ""
 $Results = @()
+
+if (-not $IncludeEmptyColumns) {
+    $orderedHeaders = @(
+        'CA Policy Name', 'Description', 'Creation Time', 'Modified Time', 'State',
+        'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
+        'Include Roles', 'Exclude Roles', 'Include Guests or Ext Users', 'Exclude Guests or Ext Users',
+        'Include Applications', 'Exclude Applications', 'User Action', 'User Risk',
+        'Signin Risk', 'Client Apps', 'Include Device Platform', 'Exclude Device Platform',
+        'Include Locations', 'Exclude Locations', 'Access Control', 'Access Control Operator',
+        'Authentication Strength', 'Auth Strength Allowed Combo',
+        'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode',
+        'Disable Resilience Defaults', 'Is Signin Frequency Enabled', 'Signin Frequency Value'
+    )
+    $nonEmptyProps = @()
+    $allProps = $Results[0].PSObject.Properties.Name
+
+    foreach ($prop in $allProps) {
+        $hasValue = $false
+        foreach ($row in $Results) {
+            $val = $row.$prop
+            if ($null -ne $val -and $val -ne '' -and $val -ne ' ') {
+                $hasValue = $true
+                break
+            }
+        }
+        if ($hasValue) {
+            $nonEmptyProps += $prop
+        }
+    }
+
+    $Results | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
+} else {
+    $orderedHeaders = @(
+        'CA Policy Name', 'Description', 'Creation Time', 'Modified Time', 'State',
+        'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
+        'Include Roles', 'Exclude Roles', 'Include Guests or Ext Users', 'Exclude Guests or Ext Users',
+        'Include Applications', 'Exclude Applications', 'User Action', 'User Risk',
+        'Signin Risk', 'Client Apps', 'Include Device Platform', 'Exclude Device Platform',
+        'Include Locations', 'Exclude Locations', 'Access Control', 'Access Control Operator',
+        'Authentication Strength', 'Auth Strength Allowed Combo',
+        'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode',
+        'Disable Resilience Defaults', 'Is Signin Frequency Enabled', 'Signin Frequency Value'
+    )
+    $Results | Select-Object -Property $orderedHeaders | Export-Csv -Path $ExportCSV -NoTypeInformation
+}
+
 $ProcessedCount = 0
 $OutputCount = 0
 #Get all service principals
@@ -391,21 +437,35 @@ Get-MgBetaIdentityConditionalAccessPolicy -All | ForEach-Object {
         'Signin Frequency Value'            = $SignInFrequencyValue;
         'State'                             = $State
     }
-    $Results = New-Object PSObject -Property $Result
-    $Results | Select-Object 'CA Policy Name', 'Description', 'Creation Time', 'Modified Time', 'State', 'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups', 'Include Roles', 'Exclude Roles',
-    'Include Guests or Ext Users', 'Exclude Guests or Ext Users', 'Include Applications', 'Exclude Applications', 'User Action', 'User Risk', 'Signin Risk', 'Client Apps', 'Include Device Platform',
-    'Exclude Device Platform', 'Include Locations', 'Exclude Locations', 'Access Control', 'Access Control Operator', 'Authentication Strength', 'Auth Strength Allowed Combo',
-    'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode', 'Disable Resilience Defaults', 'Is Signin Frequency Enabled', 'Signin Frequency Value' | Export-Csv -Path $ExportCSV -Notype -Append
+    $Results += New-Object PSObject -Property $Result
 }
 
 
-#Open output file after execution
-if ($OutputCount -eq 0) {
-    Write-Host No data found for the given criteria
+if ($Results.Count -eq 0) {
+    Write-Host "No data found for the given criteria"
 } else {
-    Write-Host `nThe output file contains $OutputCount CA policies.
-    if ((Test-Path -Path $ExportCSV) -eq "True") {
-        Write-Host `nThe Output file available at:  -NoNewline -ForegroundColor Yellow
+    if (-not $IncludeEmptyColumns) {
+        $allProps = $Results[0].PSObject.Properties.Name
+        $nonEmptyProps = @()
+        foreach ($prop in $allProps) {
+            $hasValue = $false
+            foreach ($row in $Results) {
+                if ($null -ne $row.PSObject.Properties[$prop].Value -and $row.PSObject.Properties[$prop].Value -ne '' -and $row.PSObject.Properties[$prop].Value -ne ' ') {
+                    $hasValue = $true
+                    break
+                }
+            }
+            if ($hasValue) {
+                $nonEmptyProps += $prop
+            }
+        }
+        $Results | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
+    } else {
+        $Results | Export-Csv -Path $ExportCSV -NoTypeInformation
+    }
+    Write-Host "`nThe output file contains $($Results.Count) CA policies."
+    if ((Test-Path -Path $ExportCSV) -eq $true) {
+        Write-Host "`nThe Output file available at: " -NoNewline -ForegroundColor Yellow
         Write-Host $ExportCSV
     }
 }
