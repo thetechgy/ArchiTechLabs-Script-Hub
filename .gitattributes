@@ -1,0 +1,7 @@
+* text=auto
+*.ps1 text eol=lf
+*.md text
+*.log binary
+*.csv text
+*.json text
+*.zip binary
