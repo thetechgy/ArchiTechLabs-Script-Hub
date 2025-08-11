@@ -3,7 +3,6 @@
     Export Conditional Access (CA) policies from Microsoft Entra ID (Azure AD) to a structured CSV file.
 .DESCRIPTION
     This script uses Microsoft Graph (beta) to extract Conditional Access policy configurations into a timestamped CSV report for audit, compliance, and operational insight.
-
     Features:
       • Filters: Active, Disabled, Report-Only, recently created or modified
       • Output: CSV file with 30+ core CA policy attributes
@@ -139,7 +138,7 @@ function ConvertTo-DirectoryObjectName {
 
                 }
             } catch {
-                Write-Host "Deleted object configured in the CA policy $CAName" -ForegroundColor Red
+                Write-Host "Deleted object configured in the CA policy $DisplayName" -ForegroundColor Red
                 Write-Host "Processing CA policies..."
             }
         }
@@ -197,7 +196,7 @@ $Results = @()
 
 if (-not $IncludeEmptyColumns) {
     $orderedHeaders = @(
-        'CA Policy Name', 'State',
+        'DisplayName', 'State',
         'Include Users', 'Exclude Users',
         'Include Groups', 'Exclude Groups',
         'Include Roles',
@@ -230,7 +229,7 @@ if (-not $IncludeEmptyColumns) {
     $Results | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
 } else {
     $orderedHeaders = @(
-        'CA Policy Name', 'Description', 'Creation Time', 'Modified Time', 'State',
+        'DisplayName', 'Description', 'Creation Time', 'Modified Time', 'State',
         'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
         'Include Roles', 'Exclude Roles', 'Include Guests or Ext Users', 'Exclude Guests or Ext Users',
         'Include Applications', 'Exclude Applications', 'User Action', 'User Risk',
@@ -258,12 +257,12 @@ $AllPolicies = Get-MgBetaIdentityConditionalAccessPolicy -All
 $total = $AllPolicies.Count
 $AllPolicies | ForEach-Object {
     $ProcessedCount++
-    $CAName = $_.DisplayName
+    $DisplayName = $_.DisplayName
     $Description = $_.Description
-    $CreationTime = $_.CreatedDateTime
-    $LastModifiedTime = $_.ModifiedDateTime
+    $CreatedDateTime = $_.CreatedDateTime
+    $ModifiedDateTime = $_.ModifiedDateTime
     $State = $_.State
-    Write-Progress -Activity "Exporting Conditional Access Policies" -Status "Processing: $CAName" -PercentComplete (($ProcessedCount / $total) * 100)
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Status "Processing: $DisplayName" -PercentComplete (($ProcessedCount / $total) * 100)
 
     #Filter CA policies based on their State
     if ($ActiveCAPoliciesOnly.IsPresent -and $State -ne "Enabled") {
@@ -275,25 +274,25 @@ $AllPolicies | ForEach-Object {
     }
 
     #Calculating recently created and modified days
-    if ($null -eq $CreationTime) {
-        $CreationTime = "-"
+    if ($null -eq $CreatedDateTime) {
+        $CreatedDateTime = "-"
     } else {
-        $CreatedInDays = (New-TimeSpan -Start $CreationTime).Days
+        $CreatedInDays = (New-TimeSpan -Start $CreatedDateTime).Days
     }
 
-    if ($null -eq $LastModifiedTime) {
-        $LastModifiedTime = "-"
+    if ($null -eq $ModifiedDateTime) {
+        $ModifiedDateTime = "-"
     } else {
-        $ModifiedInDays = (New-TimeSpan -Start $LastModifiedTime).Days
+        $ModifiedInDays = (New-TimeSpan -Start $ModifiedDateTime).Days
     }
 
     #Filter for recently created CA policies
-    if (($RecentlyCreatedCAPolicies -ne "") -and (($RecentlyCreatedCAPolicies -lt $CreatedInDays) -or ($CreationTime -eq "-"))) {
+    if (($RecentlyCreatedCAPolicies -ne "") -and (($RecentlyCreatedCAPolicies -lt $CreatedInDays) -or ($CreatedDateTime -eq "-"))) {
         return
     }
 
     #Filter for recently modified CA polcies
-    if (($RecentlyModifiedCAPolicies -ne "") -and (($RecentlyModifiedCAPolicies -lt $ModifiedInDays) -or ($LastModifiedTime -eq "-") )) {
+    if (($RecentlyModifiedCAPolicies -ne "") -and (($RecentlyModifiedCAPolicies -lt $ModifiedInDays) -or ($ModifiedDateTime -eq "-") )) {
         return
     }
 
@@ -360,17 +359,17 @@ $AllPolicies | ForEach-Object {
 
 
     #Conditions
-    $UserRisk = $_.Conditions.UserRiskLevels
-    $SigninRisk = $_.Conditions.SignInRiskLevels
-    $ClientApps = $_.Conditions.ClientAppTypes
+    $UserRiskLevel = $_.Conditions.UserRiskLevelLevels
+    $SigninRiskLevel = $_.Conditions.SigninRiskLevelLevels
+    $ClientAppTypes = $_.Conditions.ClientAppTypes
     $IncludeDevicePlatform = $_.Conditions.Platforms.IncludePlatforms
     $ExcludeDevicePlatform = $_.Conditions.Platforms.ExcludePlatforms
     $IncludeLocations = $_.Conditions.Locations.IncludeLocations
     $ExcludeLocations = $_.Conditions.Locations.ExcludeLocations
 
-    $UserRisk = Join-Array $UserRisk
-    $SigninRisk = Join-Array $SigninRisk
-    $ClientApps = Join-Array $ClientApps
+    $UserRiskLevel = Join-Array $UserRiskLevel
+    $SigninRiskLevel = Join-Array $SigninRiskLevel
+    $ClientAppTypes = Join-Array $ClientAppTypes
     $IncludeDevicePlatform = Join-Array $IncludeDevicePlatform
     $ExcludeDevicePlatform = Join-Array $ExcludeDevicePlatform
 
@@ -388,17 +387,17 @@ $AllPolicies | ForEach-Object {
 
 
     #Grant Control
-    $AccessControl = $_.GrantControls.BuiltInControls -join ","
-    $AccessControlOperator = $_.GrantControls.Operator
-    $AuthenticationStrength = $_.GrantControls.AuthenticationStrength.DisplayName
+    $GrantControls = $_.GrantControls.BuiltInControls -join ","
+    $GrantControlsOperator = $_.GrantControls.Operator
+    $GrantControlsAuthStrength = $_.GrantControls.GrantControlsAuthStrength.DisplayName
 
     #Session Control
     $AppEnforcedRestrictions = $_.SessionControls.ApplicationEnforcedRestrictions.IsEnabled
     $CloudAppSecurity = $_.SessionControls.CloudAppSecurity.IsEnabled
     $CAEMode = $_.SessionControls.ContinuousAccessEvaluation.Mode
     $DisableResilienceDefaults = $_.SessionControls.DisableResilienceDefaults
-    $IsSigninFrequencyEnabled = $_.SessionControls.SignInFrequency.IsEnabled
-    if ($IsSigninFrequencyEnabled) {
+    $SigninFrequencyEnabled = $_.SessionControls.SignInFrequency.IsEnabled
+    if ($SigninFrequencyEnabled) {
         $Value = $_.SessionControls.SignInFrequency.Value
         $Type = $_.SessionControls.SignInFrequency.Type
 
@@ -414,45 +413,45 @@ $AllPolicies | ForEach-Object {
 
 
     $OutputCount++
-    $Result = @{'CA Policy Name'            = $CAName;
-        'Description'                       = $Description;
-        'Creation Time'                     = $CreationTime;
-        'Modified Time'                     = $LastModifiedTime;
-        'Include Users'                     = $IncludeUsers;
-        'Exclude Users'                     = $ExcludeUsers;
-        'Include Groups'                    = $IncludeGroups;
-        'Exclude Groups'                    = $ExcludeGroups;
-        'Include Roles'                     = $IncludeRoles;
-        'Exclude Roles'                     = $ExcludeRoles;
-        'Include Guests or Ext Users'       = $IncludeGuestsOrExtUsers;
-        'Exclude Guests or Ext Users'       = $ExcludeGuestsOrExtUsers;
-        'Include Applications'              = $IncludeApplications;
-        'Exclude Applications'              = $ExcludeApplications;
-        'User Action'                       = $UserAction;
-        'User Risk'                         = $UserRisk;
-        'Signin Risk'                       = $SigninRisk;
-        'Client Apps'                       = $ClientApps;
-        'Include Device Platform'           = $IncludeDevicePlatform;
-        'Exclude Device Platform'           = $ExcludeDevicePlatform;
-        'Include Locations'                 = $IncludeLocations;
-        'Exclude Locations'                 = $ExcludeLocations;
-        'Access Control'                    = $AccessControl;
-        'Access Control Operator'           = $AccessControlOperator;
-        'Authentication Strength'           = $AuthenticationStrength;
-        'App Enforced Restrictions Enabled' = $AppEnforcedRestrictions;
-        'Cloud App Security'                = $CloudAppSecurity;
-        'CAE Mode'                          = $CAEMode;
-        'Disable Resilience Defaults'       = $DisableResilienceDefaults;
-        'Is Signin Frequency Enabled'       = $IsSigninFrequencyEnabled;
-        'Signin Frequency Value'            = $SignInFrequencyValue;
-        'State'                             = $State
+    $Result = @{'DisplayName'                    = $DisplayName;
+        'Description'                            = $Description;
+        'Created Date Time'                      = $CreatedDateTime;
+        'Modified Date Time'                     = $ModifiedDateTime;
+        'Include Users'                          = $IncludeUsers;
+        'Exclude Users'                          = $ExcludeUsers;
+        'Include Groups'                         = $IncludeGroups;
+        'Exclude Groups'                         = $ExcludeGroups;
+        'Include Roles'                          = $IncludeRoles;
+        'Exclude Roles'                          = $ExcludeRoles;
+        'Include Guests or External Users'       = $IncludeGuestsOrExtUsers;
+        'Exclude Guests or External Users'       = $ExcludeGuestsOrExtUsers;
+        'Include Applications'                   = $IncludeApplications;
+        'Exclude Applications'                   = $ExcludeApplications;
+        'User Action'                            = $UserAction;
+        'User Risk Level'                        = $UserRiskLevel;
+        'Signin Risk Level'                      = $SigninRiskLevel;
+        'Client App Types'                       = $ClientAppTypes;
+        'Include Device Platform'                = $IncludeDevicePlatform;
+        'Exclude Device Platform'                = $ExcludeDevicePlatform;
+        'Include Locations'                      = $IncludeLocations;
+        'Exclude Locations'                      = $ExcludeLocations;
+        'Grant Controls'                         = $GrantControls;
+        'Grant Controls Operator'                = $GrantControlsOperator;
+        'Grant Controls Authentication Strength' = $GrantControlsAuthStrength;
+        'App Enforced Restrictions Enabled'      = $AppEnforcedRestrictions;
+        'Cloud App Security'                     = $CloudAppSecurity;
+        'CAE Mode'                               = $CAEMode;
+        'Disable Resilience Defaults'            = $DisableResilienceDefaults;
+        'Signin Frequency Enabled'               = $SigninFrequencyEnabled;
+        'Signin Frequency Value'                 = $SignInFrequencyValue;
+        'State'                                  = $State
     }
     $Results += [pscustomobject]$Result
 }
 
 
 if ($Results.Count -eq 0) {
-    Write-Host "No data found for the given criteria"
+    Write-Host "No data found for the given criteria."
 } else {
     if (-not $IncludeEmptyColumns) {
         $allProps = $Results[0].PSObject.Properties.Name
