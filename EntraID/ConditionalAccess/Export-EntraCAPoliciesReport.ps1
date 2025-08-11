@@ -41,7 +41,7 @@
     Last Updated: 08/08/2025
     Version: 0.4.0
     Original Source:
-        Author: RapidScripter
+        Author: Kashyap Patel
         URL   : https://github.com/RapidScripter/export-conditional-access-policies
 Revision History:
     0.4.0 – 08/08/2025 – Refactor for efficiency, object creation, join-logic, header handling
