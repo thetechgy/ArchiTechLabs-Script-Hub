@@ -64,7 +64,6 @@ param
     [string]$OutputDirectory = "$PSScriptRoot\Output",
     [string]$OutputFileName = "CA_Policies_Report_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv",
     [switch]$IncludeEmptyColumns
-
 )
 
 #endregion
@@ -96,8 +95,6 @@ foreach ($sub in $RequiredSubmodules) {
     }
 }
 
-
-
 #endregion
 
 #region Global Hash Caches
@@ -108,6 +105,7 @@ $global:NamedLocationHash = @{}
 #endregion
 
 #region Graph Connection
+# Authenticates to Microsoft Graph using either certificate-based or interactive login
 function Connect-MgGraphSession {
     if ($CreateSession.IsPresent) {
         Disconnect-MgGraph -ErrorAction SilentlyContinue
@@ -127,6 +125,7 @@ Connect-MgGraphSession
 #endregion
 
 #region Conversion Helpers
+# Functions to convert raw GUIDs into human-readable names (directory objects, SPNs, named locations)
 function ConvertTo-DirectoryObjectName {
     param(
         [Parameter(Mandatory = $true)]
@@ -198,6 +197,7 @@ function Get-NamedLocationDisplayName {
 #endregion
 
 #region Utility Functions
+# Miscellaneous helpers to support consistent formatting and data handling
 function Join-Array {
     param ([array]$Values)
     return ($Values -join ',')
@@ -277,6 +277,7 @@ Write-Progress -Activity "Exporting" -Status "Retrieving CA policies..." -Percen
 #endregion
 
 #region Policy Retrieval and Processing
+# Miscellaneous helpers to support consistent formatting and data handling
 #Processing all CA policies
 $AllPolicies = Get-MgBetaIdentityConditionalAccessPolicy -All
 $total = $AllPolicies.Count
@@ -287,6 +288,8 @@ $AllPolicies | ForEach-Object {
     $CreatedDateTime = $_.CreatedDateTime
     $ModifiedDateTime = $_.ModifiedDateTime
     $State = $_.State
+
+    # Show progress bar for current policy being processed
     Write-Progress -Activity "Exporting Conditional Access Policies" -Status "Processing: $DisplayName" -PercentComplete (($ProcessedCount / $total) * 100)
 
     #Filter CA policies based on their State
@@ -321,8 +324,8 @@ $AllPolicies | ForEach-Object {
         return
     }
 
-
-    #Assignments
+    # --- Assignments Block ---
+    # Evaluate and convert all user/group/role assignments from object IDs to display names
     $Conditions = $_.Conditions
     $IncludeUsers = $Conditions.Users.IncludeUsers
     $ExcludeUsers = $Conditions.Users.ExcludeUsers
@@ -363,9 +366,8 @@ $AllPolicies | ForEach-Object {
     $IncludeGuestsOrExtUsers = Join-Array $IncludeGuestsOrExtUsers
     $ExcludeGuestsOrExtUsers = Join-Array $ExcludeGuestsOrExtUsers
 
-
-
-    #Target Resources
+    # --- Target Resources Block ---
+    # Evaluate application and user action conditions
     $IncludeApplications = $_.Conditions.Applications.IncludeApplications
     $ExcludeApplications = $_.Conditions.Applications.ExcludeApplications
     $UserAction = $_.Conditions.Applications.IncludeUserActions
@@ -381,9 +383,8 @@ $AllPolicies | ForEach-Object {
     }
     $ExcludeApplications = Join-Array $ExcludeApplications
 
-
-
-    #Conditions
+    # --- Conditions Block ---
+    # Evaluate risk levels, client apps, platforms, and locations
     $UserRiskLevel = $_.Conditions.UserRiskLevelLevels
     $SigninRiskLevel = $_.Conditions.SigninRiskLevelLevels
     $ClientAppTypes = $_.Conditions.ClientAppTypes
@@ -409,14 +410,14 @@ $AllPolicies | ForEach-Object {
     }
     $ExcludeLocations = Join-Array $ExcludeLocations
 
-
-
-    #Grant Control
+    # --- Grant Controls Block ---
+    # Evaluate grant control settings and operator
     $GrantControls = $_.GrantControls.BuiltInControls -join ","
     $GrantControlsOperator = $_.GrantControls.Operator
     $GrantControlsAuthStrength = $_.GrantControls.GrantControlsAuthStrength.DisplayName
 
-    #Session Control
+    # --- Session Controls Block ---
+    # Evaluate session controls like app restrictions and sign-in frequency
     $AppEnforcedRestrictions = $_.SessionControls.ApplicationEnforcedRestrictions.IsEnabled
     $CloudAppSecurity = $_.SessionControls.CloudAppSecurity.IsEnabled
     $CAEMode = $_.SessionControls.ContinuousAccessEvaluation.Mode
@@ -434,8 +435,6 @@ $AllPolicies | ForEach-Object {
     } else {
         $SignInFrequencyValue = ""
     }
-
-
 
     $OutputCount++
     $Result = @{'DisplayName'                    = $DisplayName;
@@ -474,10 +473,10 @@ $AllPolicies | ForEach-Object {
     $Results += [pscustomobject]$Result
 }
 
-
 #endregion
 
 #region Final Output and Export
+# Finalize and export the filtered policy data to CSV, optionally pruning empty columns
 if ($Results.Count -eq 0) {
     Write-Host "No data found for the given criteria."
 } else {
