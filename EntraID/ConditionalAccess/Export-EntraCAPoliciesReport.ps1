@@ -226,7 +226,7 @@ if (-not $IncludeEmptyColumns) {
         }
     }
 
-    $Results | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
+    $Results | Sort-Object 'DisplayName' | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
 } else {
     $orderedHeaders = @(
         'DisplayName', 'Description', 'Creation Time', 'Modified Time', 'State',
@@ -468,7 +468,7 @@ if ($Results.Count -eq 0) {
                 $nonEmptyProps += $prop
             }
         }
-        $Results | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
+        $Results | Sort-Object 'DisplayName' | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
     } else {
         $Results | Export-Csv -Path $ExportCSV -NoTypeInformation
     }
