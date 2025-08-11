@@ -49,6 +49,7 @@ Revision History:
     0.1.0 – 06/30/2024 – Initial version from upstream
 #>
 
+#region Parameters
 param
 (
     [switch]$ActiveCAPoliciesOnly,
@@ -66,6 +67,9 @@ param
 
 )
 
+#endregion
+
+#region Module Loading
 $RequiredModules = @('Microsoft.Graph.Beta')
 
 foreach ($mod in $RequiredModules) {
@@ -94,10 +98,16 @@ foreach ($sub in $RequiredSubmodules) {
 
 
 
+#endregion
+
+#region Global Hash Caches
 $global:DirectoryObjsHash = @{}
 $global:ServicePrincipalsHash = @{}
 $global:NamedLocationHash = @{}
 
+#endregion
+
+#region Graph Connection
 function Connect-MgGraphSession {
     if ($CreateSession.IsPresent) {
         Disconnect-MgGraph -ErrorAction SilentlyContinue
@@ -114,6 +124,9 @@ function Connect-MgGraphSession {
 
 Connect-MgGraphSession
 
+#endregion
+
+#region Conversion Helpers
 function ConvertTo-DirectoryObjectName {
     param(
         [Parameter(Mandatory = $true)]
@@ -182,11 +195,17 @@ function Get-NamedLocationDisplayName {
     return $ConvertedNames
 }
 
+#endregion
+
+#region Utility Functions
 function Join-Array {
     param ([array]$Values)
     return ($Values -join ',')
 }
 
+#endregion
+
+#region Prep and Output Path Setup
 #Prep
 if (-not (Test-Path -Path $OutputDirectory)) {
     New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
@@ -242,6 +261,9 @@ if (-not $IncludeEmptyColumns) {
     $Results | Select-Object -Property $orderedHeaders | Export-Csv -Path $ExportCSV -NoTypeInformation
 }
 
+#endregion
+
+#region Service Principal and Location Lookup
 $ProcessedCount = 0
 $OutputCount = 0
 #Get all service principals
@@ -252,6 +274,9 @@ $NamedLocationHash = Get-MgBetaIdentityConditionalAccessNamedLocation -All | Gro
 Write-Progress -Activity "Exporting" -Status "Retrieving CA policies..." -PercentComplete 30
 
 
+#endregion
+
+#region Policy Retrieval and Processing
 #Processing all CA policies
 $AllPolicies = Get-MgBetaIdentityConditionalAccessPolicy -All
 $total = $AllPolicies.Count
@@ -450,6 +475,9 @@ $AllPolicies | ForEach-Object {
 }
 
 
+#endregion
+
+#region Final Output and Export
 if ($Results.Count -eq 0) {
     Write-Host "No data found for the given criteria."
 } else {
