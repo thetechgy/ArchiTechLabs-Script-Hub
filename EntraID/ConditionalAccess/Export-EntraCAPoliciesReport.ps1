@@ -74,7 +74,7 @@ foreach ($mod in $RequiredModules) {
         Write-Host "Module '$mod' not found. Installing..." -ForegroundColor Yellow
         Install-Module -Name $mod -Scope CurrentUser -Force -ErrorAction Stop -Confirm:$false
     } else {
-        Write-Host "Module '$mod' is already available."
+        Write-Host "Module '$mod' is already installed and available."
     }
 }
 
