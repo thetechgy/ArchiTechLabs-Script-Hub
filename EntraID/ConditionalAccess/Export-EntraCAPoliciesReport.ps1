@@ -272,6 +272,7 @@ $ServicePrincipalsHash = Get-MgBetaServicePrincipal -All | Group-Object -Propert
 Write-Progress -Activity "Initializing" -Status "Retrieving named locations..." -PercentComplete 20
 $NamedLocationHash = Get-MgBetaIdentityConditionalAccessNamedLocation -All | Group-Object -Property Id -AsHashTable
 Write-Progress -Activity "Exporting" -Status "Retrieving CA policies..." -PercentComplete 30
+Write-Progress -Activity "Initializing" -Completed
 
 
 #endregion
