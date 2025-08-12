@@ -481,5 +481,7 @@ if ($Results.Count -eq 0) {
         Write-Host "The output file is available at: " -ForegroundColor Yellow
         Write-Host $ExportCSV
     }
+    # Clean up Microsoft Graph session
+    Write-Host "Disconnecting from Microsoft Graph..."
+    Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
 }
-
