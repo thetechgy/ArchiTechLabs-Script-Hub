@@ -266,7 +266,6 @@ $Results = @()
 
 #region Service Principal and Location Lookup
 $ProcessedCount = 0
-$OutputCount = 0
 #Get all service principals
 Write-Progress -Activity "Initializing" -Status "Retrieving service principals..." -PercentComplete 10
 $ServicePrincipalsHash = Get-MgBetaServicePrincipal -All | Group-Object -Property AppId -AsHashTable
@@ -438,7 +437,6 @@ $AllPolicies | ForEach-Object {
         $SignInFrequencyValue = ""
     }
 
-    $OutputCount++
     $Result = @{'DisplayName'                    = $DisplayName;
         'Description'                            = $Description;
         'Created Date Time'                      = $CreatedDateTime;
