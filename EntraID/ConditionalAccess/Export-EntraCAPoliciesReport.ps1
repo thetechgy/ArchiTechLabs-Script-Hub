@@ -2,47 +2,50 @@
 .SYNOPSIS
     Export Conditional Access (CA) policies from Microsoft Entra ID (Azure AD) to a structured CSV file.
 .DESCRIPTION
-    This script uses Microsoft Graph (beta) to extract Conditional Access policy configurations into a timestamped CSV report for audit, compliance, and operational insight.
-    Features:
-      • Filters: Active, Disabled, Report-Only, recently created or modified
-      • Output: CSV file with 30+ core CA policy attributes
-      • Column handling: Optional exclusion of empty columns
-      • Authentication: Supports interactive and certificate-based Graph auth
-      • Progress: Includes progress bar with per-policy feedback
-      • Performance: Caches display names and uses optimized object creation
-      • Reliability: Verifies module presence and avoids redundant imports
+    This script connects to Microsoft Graph (Beta) to retrieve Conditional Access policy configurations
+    from Entra ID and exports them to a timestamped CSV file.
+
+    Key Features:
+      • Filters: export only active, disabled, report-only, recently created, or recently modified policies
+      • Authentication: supports both delegated (interactive) and app-based (certificate) authentication
+      • Output: CSV with 30+ attributes; supports exclusion of empty columns
+      • Structure: modular functions, progress indicators, clean output formatting
+      • Hygiene: disconnects from Graph, suppresses output, respects automation use
+      • Standards: compliant with PowerShell 7.2+, Graph SDK, and internal scripting conventions
+
 .PARAMETER ActiveCAPoliciesOnly
-    Only include policies whose State is Enabled.
+    Export only policies where State = Enabled.
 .PARAMETER DisabledCAPoliciesOnly
-    Only include policies whose State is Disabled.
+    Export only policies where State = Disabled.
 .PARAMETER ReportOnlyMode
-    Only include policies in report-only mode.
+    Export only policies where State = EnabledForReportingButNotEnforced.
 .PARAMETER RecentlyCreatedCAPolicies
-    Include only policies created within the past N days.
+    Export policies created within the last N days.
 .PARAMETER RecentlyModifiedCAPolicies
-    Include only policies modified within the past N days.
+    Export policies modified within the last N days.
 .PARAMETER CreateSession
-    Force disconnection and re-authentication to Microsoft Graph.
+    Disconnect any existing Graph session before connecting.
 .PARAMETER TenantId
-    Directory (tenant) ID for Graph auth (used with ClientId and CertificateThumbprint).
+    Azure AD tenant ID (GUID); used for app-only authentication.
 .PARAMETER ClientId
-    Application (client) ID for certificate-based Graph auth.
+    Application (client) ID for Graph auth.
 .PARAMETER CertificateThumbprint
-    Thumbprint of the certificate used for app-only authentication.
+    Certificate thumbprint used for app-only authentication.
 .PARAMETER OutputDirectory
-    Directory path for the generated CSV file. Default: "$PSScriptRoot\Output"
+    Folder where the CSV file will be saved (default: $PSScriptRoot\Output).
 .PARAMETER OutputFileName
-    File name for the output. Default: "CA_Policies_Report_<timestamp>.csv"
+    File name for the exported report (default includes timestamp).
 .PARAMETER IncludeEmptyColumns
-    Switch to include columns that are empty across all results.
+    Include columns that have no data in any row.
 .NOTES
     Author: Travis McDade
     Last Updated: 08/08/2025
-    Version: 0.4.0
+    Version: 1.0.0
     Original Source:
         Author: Kashyap Patel
         URL   : https://github.com/RapidScripter/export-conditional-access-policies
 Revision History:
+    1.0.0 – 08/08/2025 – Finalized for production: cleanup, refactor, export modularization, best practices
     0.4.0 – 08/08/2025 – Refactor for efficiency, object creation, join-logic, header handling
     0.3.0 – 08/07/2025 – Column pruning and ordered header logic
     0.2.0 – 08/06/2025 – Progress integration and parameter enhancements
