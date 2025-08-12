@@ -214,20 +214,7 @@ $ExportCSV = Join-Path -Path $OutputDirectory -ChildPath $OutputFileName
 $Results = @()
 
 if (-not $IncludeEmptyColumns) {
-    $orderedHeaders = @(
-        'DisplayName', 'State',
-        'Include Users', 'Exclude Users',
-        'Include Groups', 'Exclude Groups',
-        'Include Roles',
-        'Include Applications', 'Exclude Applications',
-        'Include Locations', 'Exclude Locations',
-        'Include Device Platform', 'Exclude Device Platform',
-        'Client Apps', 'Signin Risk',
-        'Access Control', 'Access Control Operator',
-        'Authentication Strength',
-        'Signin Frequency Value',
-        'Creation Time', 'Modified Time'
-    )
+    $orderedHeaders = @('DisplayName', 'Description', 'State', 'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups', 'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users', 'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level', 'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform', 'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator', 'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value', 'Created Date Time', 'Modified Date Time')
     $nonEmptyProps = @()
     $allProps = $Results[0].PSObject.Properties.Name
 
@@ -246,19 +233,11 @@ if (-not $IncludeEmptyColumns) {
     }
 
     $Results | Sort-Object 'DisplayName' | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
 } else {
-    $orderedHeaders = @(
-        'DisplayName', 'Description', 'Creation Time', 'Modified Time', 'State',
-        'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
-        'Include Roles', 'Exclude Roles', 'Include Guests or Ext Users', 'Exclude Guests or Ext Users',
-        'Include Applications', 'Exclude Applications', 'User Action', 'User Risk',
-        'Signin Risk', 'Client Apps', 'Include Device Platform', 'Exclude Device Platform',
-        'Include Locations', 'Exclude Locations', 'Access Control', 'Access Control Operator',
-        'Authentication Strength',
-        'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode',
-        'Disable Resilience Defaults', 'Is Signin Frequency Enabled', 'Signin Frequency Value'
-    )
+    $orderedHeaders = @('DisplayName', 'Description', 'State', 'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups', 'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users', 'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level', 'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform', 'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator', 'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value', 'Created Date Time', 'Modified Date Time')
     $Results | Select-Object -Property $orderedHeaders | Export-Csv -Path $ExportCSV -NoTypeInformation
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
 }
 
 #endregion
@@ -496,8 +475,10 @@ if ($Results.Count -eq 0) {
             }
         }
         $Results | Sort-Object 'DisplayName' | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
+        Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
     } else {
         $Results | Export-Csv -Path $ExportCSV -NoTypeInformation
+        Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
     }
     Write-Host "The output file contains $($Results.Count) CA policies."
     if ((Test-Path -Path $ExportCSV) -eq $true) {
