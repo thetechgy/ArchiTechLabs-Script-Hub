@@ -1,0 +1,490 @@
+<#
+.SYNOPSIS
+    Export Conditional Access (CA) policies from Microsoft Entra ID (Azure AD) to a structured CSV file.
+.DESCRIPTION
+    This script connects to Microsoft Graph (Beta) to retrieve Conditional Access policy configurations
+    from Entra ID and exports them to a timestamped CSV file.
+
+    Key Features:
+      • Filters: export only active, disabled, report-only, recently created, or recently modified policies
+      • Authentication: supports both delegated (interactive) and app-based (certificate) authentication
+      • Output: CSV with 30+ attributes; supports exclusion of empty columns
+      • Structure: modular functions, progress indicators, clean output formatting
+      • Hygiene: disconnects from Graph, suppresses output, respects automation use
+      • Standards: compliant with PowerShell 7.2+, Graph SDK, and internal scripting conventions
+
+.PARAMETER ActiveCAPoliciesOnly
+    Export only policies where State = Enabled.
+.PARAMETER DisabledCAPoliciesOnly
+    Export only policies where State = Disabled.
+.PARAMETER ReportOnlyMode
+    Export only policies where State = EnabledForReportingButNotEnforced.
+.PARAMETER RecentlyCreatedCAPolicies
+    Export policies created within the last N days.
+.PARAMETER RecentlyModifiedCAPolicies
+    Export policies modified within the last N days.
+.PARAMETER CreateSession
+    Disconnect any existing Graph session before connecting.
+.PARAMETER TenantId
+    Azure AD tenant ID (GUID); used for app-only authentication.
+.PARAMETER ClientId
+    Application (client) ID for Graph auth.
+.PARAMETER CertificateThumbprint
+    Certificate thumbprint used for app-only authentication.
+.PARAMETER OutputDirectory
+    Folder where the CSV file will be saved (default: $PSScriptRoot\Output).
+.PARAMETER OutputFileName
+    File name for the exported report (default includes timestamp).
+.PARAMETER IncludeEmptyColumns
+    Include columns that have no data in any row.
+.NOTES
+    Author: Travis McDade
+    Last Updated: 08/08/2025
+    Version: 1.0.0
+    Original Source:
+        Author: Kashyap Patel
+        URL   : https://github.com/RapidScripter/export-conditional-access-policies
+Revision History:
+    1.0.0 – 08/08/2025 – Finalized for production: cleanup, refactor, export modularization, best practices
+    0.4.0 – 08/08/2025 – Refactor for efficiency, object creation, join-logic, header handling
+    0.3.0 – 08/07/2025 – Column pruning and ordered header logic
+    0.2.0 – 08/06/2025 – Progress integration and parameter enhancements
+    0.1.0 – 06/30/2024 – Initial version from upstream
+#>
+
+#Requires -Version 7.2
+
+#region Parameters
+param
+(
+    [switch]$ActiveCAPoliciesOnly,
+    [switch]$DisabledCAPoliciesOnly,
+    [switch]$ReportOnlyMode,
+    [int]$RecentlyCreatedCAPolicies,
+    [int]$RecentlyModifiedCAPolicies,
+    [switch]$CreateSession,
+    [string]$TenantId,
+    [string]$ClientId,
+    [string]$CertificateThumbprint,
+    [string]$OutputDirectory = "$PSScriptRoot\Output",
+    [string]$OutputFileName = "CA_Policies_Report_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv",
+    [switch]$IncludeEmptyColumns
+)
+
+#endregion
+
+#region Module Loading
+$RequiredModules = @('Microsoft.Graph.Beta')
+
+foreach ($mod in $RequiredModules) {
+    if (-not (Get-Module -ListAvailable -Name $mod)) {
+        Write-Host "Module '$mod' not found. Installing..." -ForegroundColor Yellow
+        Install-Module -Name $mod -Scope CurrentUser -Force -ErrorAction Stop -Confirm:$false
+    } else {
+        Write-Host "Module '$mod' is already installed and available."
+    }
+}
+
+# Explicitly import only required submodules to avoid lazy-load assembly conflicts
+$RequiredSubmodules = @(
+    'Microsoft.Graph.Beta.Applications',
+    'Microsoft.Graph.Beta.Identity.SignIns'
+)
+
+foreach ($sub in $RequiredSubmodules) {
+    try {
+        Import-Module -Name $sub -ErrorAction Stop
+    } catch {
+        Write-Error ("Failed to import Graph submodule {0}: {1}" -f $sub, $_.Exception.Message)
+        exit 1
+    }
+}
+
+#endregion
+
+#region Global Hash Caches
+$global:DirectoryObjsHash = @{}
+$global:ServicePrincipalsHash = @{}
+$global:NamedLocationHash = @{}
+
+#endregion
+
+#region Graph Connection
+# Authenticates to Microsoft Graph using either certificate-based or interactive login
+function Connect-MgGraphSession {
+    if ($CreateSession.IsPresent) {
+        Disconnect-MgGraph -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "Connecting to Microsoft Graph..."
+
+    if ($TenantId -and $ClientId -and $CertificateThumbprint) {
+        Connect-MgGraph -TenantId $TenantId -AppId $ClientId -CertificateThumbprint $CertificateThumbprint -NoWelcome
+    } else {
+        Connect-MgGraph -Scopes 'Policy.Read.All', 'Directory.Read.All', 'Application.Read.All' -NoWelcome
+    }
+}
+
+Connect-MgGraphSession
+
+#endregion
+
+#region Conversion Helpers
+# Functions to convert raw GUIDs into human-readable names (directory objects, SPNs, named locations)
+function ConvertTo-DirectoryObjectName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Array]$InputIds
+    )
+    $ConvertedNames = @()
+
+    # Process each value in the array
+    foreach ($Id in $InputIds) {
+        # Check Id-Name pair already exist in hash table
+        if ($DirectoryObjsHash.ContainsKey($Id)) {
+            $Name = $DirectoryObjsHash[$Id]
+            $ConvertedNames += $Name
+        }
+        # Retrieve the display name for the directory object with the given ID
+        else {
+            try {
+                $Name = ((Get-MgBetaDirectoryObject -DirectoryObjectId $Id ).AdditionalProperties["displayName"] )
+                if ($null -ne $Name) {
+                    $DirectoryObjsHash[$Id] = $Name
+                    $ConvertedNames += $Name
+
+                }
+            } catch {
+                Write-Host "Deleted object configured in the CA policy $DisplayName" -ForegroundColor Red
+                Write-Host "Continuing to next policy..." -ForegroundColor Gray
+            }
+        }
+    }
+    return $ConvertedNames
+}
+
+function Get-ServicePrincipalDisplayName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Array]$InputIds
+    )
+    $ConvertedNames = @()
+    # Process each value in the array
+    foreach ($Id in $InputIds) {
+        # Check Id-Name pair already exist in hash table
+        if ($ServicePrincipalsHash.ContainsKey($Id)) {
+            $Name = $ServicePrincipalsHash[$Id].DisplayName
+        } else
+        { $Name = $Id }
+        $ConvertedNames += $Name
+    }
+    return $ConvertedNames
+}
+
+function Get-NamedLocationDisplayName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Array]$InputIds
+    )
+    $ConvertedNames = @()
+    # Process each value in the array
+    foreach ($Id in $InputIds) {
+        # Check Id-Name pair already exist in hash table
+        if ($NamedLocationHash.ContainsKey($Id)) {
+            $Name = $NamedLocationHash[$Id].DisplayName
+        } else
+        { $Name = $Id }
+        $ConvertedNames += $Name
+    }
+    return $ConvertedNames
+}
+
+#endregion
+
+#region Utility Functions
+# Miscellaneous helpers to support consistent formatting and data handling
+function Join-Array {
+    param ([array]$Values)
+    return ($Values -join ',')
+}
+
+function Export-CaPolicyReport {
+    param (
+        [array]$Results,
+        [string[]]$Headers,
+        [string]$Path,
+        [switch]$IncludeEmptyColumns
+    )
+
+    if (-not $IncludeEmptyColumns) {
+        $nonEmptyProps = @()
+        $allProps = $Results[0].PSObject.Properties.Name
+        foreach ($prop in $allProps) {
+            foreach ($row in $Results) {
+                $val = $row.PSObject.Properties[$prop].Value
+                if ($null -ne $val -and $val -ne '' -and $val -ne ' ') {
+                    $nonEmptyProps += $prop
+                    break
+                }
+            }
+        }
+        $Results | Sort-Object 'DisplayName' | Select-Object -Property ($Headers | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $Path -NoTypeInformation
+    } else {
+        $Results | Export-Csv -Path $Path -NoTypeInformation
+    }
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
+}
+
+#endregion
+
+#region Prep and Output Path Setup
+#Prep
+if (-not (Test-Path -Path $OutputDirectory)) {
+    New-Item -Path $OutputDirectory -ItemType Directory -Force | Out-Null
+}
+$ExportCSV = Join-Path -Path $OutputDirectory -ChildPath $OutputFileName
+$Results = @()
+
+#endregion
+
+#region Service Principal and Location Lookup
+$ProcessedCount = 0
+$OutputCount = 0
+#Get all service principals
+Write-Progress -Activity "Initializing" -Status "Retrieving service principals..." -PercentComplete 10
+$ServicePrincipalsHash = Get-MgBetaServicePrincipal -All | Group-Object -Property AppId -AsHashTable
+Write-Progress -Activity "Initializing" -Status "Retrieving named locations..." -PercentComplete 20
+$NamedLocationHash = Get-MgBetaIdentityConditionalAccessNamedLocation -All | Group-Object -Property Id -AsHashTable
+Write-Progress -Activity "Exporting" -Status "Retrieving CA policies..." -PercentComplete 30
+
+
+#endregion
+
+#region Policy Retrieval and Processing
+# Miscellaneous helpers to support consistent formatting and data handling
+#Processing all CA policies
+$AllPolicies = Get-MgBetaIdentityConditionalAccessPolicy -All
+$total = $AllPolicies.Count
+$AllPolicies | ForEach-Object {
+    $ProcessedCount++
+    $DisplayName = $_.DisplayName
+    $Description = $_.Description
+    $CreatedDateTime = $_.CreatedDateTime
+    $ModifiedDateTime = $_.ModifiedDateTime
+    $State = $_.State
+
+    # Show progress bar for current policy being processed
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Status "Processing: $DisplayName" -PercentComplete (($ProcessedCount / $total) * 100)
+
+    #Filter CA policies based on their State
+    if ($ActiveCAPoliciesOnly.IsPresent -and $State -ne "Enabled") {
+        return
+    } elseif ($DisabledCAPoliciesOnly.IsPresent -and $State -ne "Disabled" ) {
+        return
+    } elseif ($ReportOnlyMode.IsPresent -and $State -ne "EnabledForReportingButNotEnforced") {
+        return
+    }
+
+    #Calculating recently created and modified days
+    if ($null -eq $CreatedDateTime) {
+        $CreatedDateTime = "-"
+    } else {
+        $CreatedInDays = (New-TimeSpan -Start $CreatedDateTime).Days
+    }
+
+    if ($null -eq $ModifiedDateTime) {
+        $ModifiedDateTime = "-"
+    } else {
+        $ModifiedInDays = (New-TimeSpan -Start $ModifiedDateTime).Days
+    }
+
+    #Filter for recently created CA policies
+    if (($RecentlyCreatedCAPolicies -ne "") -and (($RecentlyCreatedCAPolicies -lt $CreatedInDays) -or ($CreatedDateTime -eq "-"))) {
+        return
+    }
+
+    #Filter for recently modified CA polcies
+    if (($RecentlyModifiedCAPolicies -ne "") -and (($RecentlyModifiedCAPolicies -lt $ModifiedInDays) -or ($ModifiedDateTime -eq "-") )) {
+        return
+    }
+
+    # --- Assignments Block ---
+    # Evaluate and convert all user/group/role assignments from object IDs to display names
+    $Conditions = $_.Conditions
+    $IncludeUsers = $Conditions.Users.IncludeUsers
+    $ExcludeUsers = $Conditions.Users.ExcludeUsers
+    $IncludeGroups = $Conditions.Users.IncludeGroups
+    $ExcludeGroups = $Conditions.Users.ExcludeGroups
+    $IncludeRoles = $Conditions.Users.IncludeRoles
+    $ExcludeRoles = $Conditions.Users.ExcludeRoles
+    $IncludeGuestsOrExtUsers = $Conditions.Users.IncludeGuestsOrExternalUsers.GuestOrExternalUserTypes
+    $ExcludeGuestsOrExtUsers = $Conditions.Users.ExcludeGuestsOrExternalUsers.GuestOrExternalUserTypes
+
+    #Convert id to names for Assignment properties
+    if ($IncludeUsers.Count -ne 0 -and ($IncludeUsers -ne 'All' -and $IncludeUsers -ne 'None' )) {
+        $IncludeUsers = ConvertTo-DirectoryObjectName -InputIds $IncludeUsers
+    }
+    $IncludeUsers = Join-Array $IncludeUsers
+
+    if (($ExcludeUsers.Count -ne 0) -and ($ExcludeUsers -ne 'GuestsOrExternalUsers'  )) {
+        $ExcludeUsers = ConvertTo-DirectoryObjectName -InputIds $ExcludeUsers
+    }
+    $ExcludeUsers = Join-Array $ExcludeUsers
+    if ($IncludeGroups.Count -ne 0) {
+        $IncludeGroups = ConvertTo-DirectoryObjectName -InputIds $IncludeGroups
+    }
+    $IncludeGroups = Join-Array $IncludeGroups
+    if ($ExcludeGroups.Count -ne 0) {
+        $ExcludeGroups = ConvertTo-DirectoryObjectName -InputIds $ExcludeGroups
+    }
+    $ExcludeGroups = Join-Array $ExcludeGroups
+    if ($IncludeRoles.Count -ne 0 -and ($IncludeRoles -ne 'All' -and $IncludeRoles -ne 'None' )) {
+        $IncludeRoles = ConvertTo-DirectoryObjectName -InputIds $IncludeRoles
+    }
+    $IncludeRoles = Join-Array $IncludeRoles
+    if ($ExcludeRoles.Count -ne 0) {
+        $ExcludeRoles = ConvertTo-DirectoryObjectName -InputIds $ExcludeRoles
+    }
+    $ExcludeRoles = Join-Array $ExcludeRoles
+
+    $IncludeGuestsOrExtUsers = Join-Array $IncludeGuestsOrExtUsers
+    $ExcludeGuestsOrExtUsers = Join-Array $ExcludeGuestsOrExtUsers
+
+    # --- Target Resources Block ---
+    # Evaluate application and user action conditions
+    $IncludeApplications = $_.Conditions.Applications.IncludeApplications
+    $ExcludeApplications = $_.Conditions.Applications.ExcludeApplications
+    $UserAction = $_.Conditions.Applications.IncludeUserActions
+    $UserAction = Join-Array $UserAction
+
+    #Convert id to names for Target resource properties
+    if ($IncludeApplications.Count -ne 0 -and ($IncludeApplications -ne 'All' -and $IncludeApplications -ne 'None' )) {
+        $IncludeApplications = Get-ServicePrincipalDisplayName -InputIds $IncludeApplications
+    }
+    $IncludeApplications = Join-Array $IncludeApplications
+    if ($ExcludeApplications.Count -ne 0) {
+        $ExcludeApplications = Get-ServicePrincipalDisplayName -InputIds $ExcludeApplications
+    }
+    $ExcludeApplications = Join-Array $ExcludeApplications
+
+    # --- Conditions Block ---
+    # Evaluate risk levels, client apps, platforms, and locations
+    $UserRiskLevel = $_.Conditions.UserRiskLevelLevels
+    $SigninRiskLevel = $_.Conditions.SigninRiskLevelLevels
+    $ClientAppTypes = $_.Conditions.ClientAppTypes
+    $IncludeDevicePlatform = $_.Conditions.Platforms.IncludePlatforms
+    $ExcludeDevicePlatform = $_.Conditions.Platforms.ExcludePlatforms
+    $IncludeLocations = $_.Conditions.Locations.IncludeLocations
+    $ExcludeLocations = $_.Conditions.Locations.ExcludeLocations
+
+    $UserRiskLevel = Join-Array $UserRiskLevel
+    $SigninRiskLevel = Join-Array $SigninRiskLevel
+    $ClientAppTypes = Join-Array $ClientAppTypes
+    $IncludeDevicePlatform = Join-Array $IncludeDevicePlatform
+    $ExcludeDevicePlatform = Join-Array $ExcludeDevicePlatform
+
+    #Convert location id to Name
+    if ($IncludeLocations.Count -ne 0 -and $IncludeLocations -ne 'All' -and $IncludeLocations -ne 'AllTrusted') {
+        $IncludeLocations = Get-NamedLocationDisplayName -InputIds $IncludeLocations
+    }
+    $IncludeLocations = Join-Array $IncludeLocations
+
+    if ($ExcludeLocations.Count -ne 0) {
+        $ExcludeLocations = Get-NamedLocationDisplayName -InputIds $ExcludeLocations
+    }
+    $ExcludeLocations = Join-Array $ExcludeLocations
+
+    # --- Grant Controls Block ---
+    # Evaluate grant control settings and operator
+    $GrantControls = Join-Array $_.GrantControls.BuiltInControls
+    $GrantControlsOperator = $_.GrantControls.Operator
+    $GrantControlsAuthStrength = $_.GrantControls.GrantControlsAuthStrength.DisplayName
+
+    # --- Session Controls Block ---
+    # Evaluate session controls like app restrictions and sign-in frequency
+    $AppEnforcedRestrictions = $_.SessionControls.ApplicationEnforcedRestrictions.IsEnabled
+    $CloudAppSecurity = $_.SessionControls.CloudAppSecurity.IsEnabled
+    $CAEMode = $_.SessionControls.ContinuousAccessEvaluation.Mode
+    $DisableResilienceDefaults = $_.SessionControls.DisableResilienceDefaults
+    $SigninFrequencyEnabled = $_.SessionControls.SignInFrequency.IsEnabled
+    if ($SigninFrequencyEnabled) {
+        $Value = $_.SessionControls.SignInFrequency.Value
+        $Type = $_.SessionControls.SignInFrequency.Type
+
+        if ($null -eq $Value -and $null -eq $Type) {
+            $SignInFrequencyValue = "Every time"
+        } else {
+            $SignInFrequencyValue = "$Value $Type"
+        }
+    } else {
+        $SignInFrequencyValue = ""
+    }
+
+    $OutputCount++
+    $Result = @{'DisplayName'                    = $DisplayName;
+        'Description'                            = $Description;
+        'Created Date Time'                      = $CreatedDateTime;
+        'Modified Date Time'                     = $ModifiedDateTime;
+        'Include Users'                          = $IncludeUsers;
+        'Exclude Users'                          = $ExcludeUsers;
+        'Include Groups'                         = $IncludeGroups;
+        'Exclude Groups'                         = $ExcludeGroups;
+        'Include Roles'                          = $IncludeRoles;
+        'Exclude Roles'                          = $ExcludeRoles;
+        'Include Guests or External Users'       = $IncludeGuestsOrExtUsers;
+        'Exclude Guests or External Users'       = $ExcludeGuestsOrExtUsers;
+        'Include Applications'                   = $IncludeApplications;
+        'Exclude Applications'                   = $ExcludeApplications;
+        'User Action'                            = $UserAction;
+        'User Risk Level'                        = $UserRiskLevel;
+        'Signin Risk Level'                      = $SigninRiskLevel;
+        'Client App Types'                       = $ClientAppTypes;
+        'Include Device Platform'                = $IncludeDevicePlatform;
+        'Exclude Device Platform'                = $ExcludeDevicePlatform;
+        'Include Locations'                      = $IncludeLocations;
+        'Exclude Locations'                      = $ExcludeLocations;
+        'Grant Controls'                         = $GrantControls;
+        'Grant Controls Operator'                = $GrantControlsOperator;
+        'Grant Controls Authentication Strength' = $GrantControlsAuthStrength;
+        'App Enforced Restrictions Enabled'      = $AppEnforcedRestrictions;
+        'Cloud App Security'                     = $CloudAppSecurity;
+        'CAE Mode'                               = $CAEMode;
+        'Disable Resilience Defaults'            = $DisableResilienceDefaults;
+        'Signin Frequency Enabled'               = $SigninFrequencyEnabled;
+        'Signin Frequency Value'                 = $SignInFrequencyValue;
+        'State'                                  = $State
+    }
+    $Results += [pscustomobject]$Result
+}
+
+#endregion
+
+#region Final Output and Export
+# Define export column order (must match keys in $Result)
+$orderedHeaders = @(
+    'DisplayName', 'Description', 'Created Date Time', 'Modified Date Time',
+    'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
+    'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users',
+    'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level',
+    'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform',
+    'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator',
+    'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security',
+    'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value',
+    'State'
+)
+
+# Finalize and export the filtered policy data to CSV, optionally pruning empty columns
+if ($Results.Count -eq 0) {
+    Write-Host "No data found for the given criteria."
+} else {
+    Export-CaPolicyReport -Results $Results -Headers $orderedHeaders -Path $ExportCSV -IncludeEmptyColumns:$IncludeEmptyColumns
+
+    Write-Host "The output file contains $($Results.Count) CA policies."
+    if ((Test-Path -Path $ExportCSV) -eq $true) {
+        Write-Host "The output file is available at: " -ForegroundColor Yellow
+        Write-Host $ExportCSV
+    }
+    # Clean up Microsoft Graph session
+    Write-Host "Disconnecting from Microsoft Graph..."
+    Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+}

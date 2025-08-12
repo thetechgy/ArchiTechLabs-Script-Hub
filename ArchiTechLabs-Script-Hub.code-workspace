@@ -1,0 +1,14 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "powershell.codeFormatting.useCorrectCasing": true,
+        "editor.tabSize": 4,
+        "editor.defaultFormatter": "ms-vscode.powershell"
+    }
+}

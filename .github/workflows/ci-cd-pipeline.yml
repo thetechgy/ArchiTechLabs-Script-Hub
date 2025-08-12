@@ -1,0 +1,54 @@
+name: PowerShell CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  lint-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      # Install PSScriptAnalyzer
+      - name: Install PSScriptAnalyzer
+        run: Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck
+
+      # Run PSScriptAnalyzer
+      - name: Run PSScriptAnalyzer
+        run: Invoke-ScriptAnalyzer -Path . -Recurse
+
+      # Install Pester for testing
+      - name: Install Pester
+        run: Install-Module -Name Pester -Force -SkipPublisherCheck
+
+      # Run Pester tests
+      - name: Run Pester Tests
+        run: Invoke-Pester -Path ./tests
+
+  # Uncomment this section when you're ready to add packaging and deployment
+  # package-and-deploy:
+  #   runs-on: windows-latest
+  #   needs: lint-and-test
+  #   if: github.ref == 'refs/heads/main'  # Only run for the main branch
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #
+  #     # Package Scripts
+  #     - name: Package Scripts
+  #       run: Compress-Archive -Path ./scripts/* -DestinationPath ./scripts.zip
+  #
+  #     # Upload Release Asset to GitHub Releases
+  #     - name: Upload Release Asset
+  #       uses: softprops/action-gh-release@v1
+  #       with:
+  #         files: scripts.zip
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #
+  #     # Deployment steps (uncomment and modify when you're ready)
+  #     - name: Deploy to Remote Server
+  #       run: |
+  #         # Deployment steps here
