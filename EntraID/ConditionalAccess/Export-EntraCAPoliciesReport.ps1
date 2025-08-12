@@ -49,6 +49,8 @@ Revision History:
     0.1.0 – 06/30/2024 – Initial version from upstream
 #>
 
+#Requires -Version 7.2
+
 #region Parameters
 param
 (
@@ -203,6 +205,33 @@ function Join-Array {
     return ($Values -join ',')
 }
 
+function Export-CaPolicyReport {
+    param (
+        [array]$Results,
+        [string[]]$Headers,
+        [string]$Path,
+        [switch]$IncludeEmptyColumns
+    )
+
+    if (-not $IncludeEmptyColumns) {
+        $nonEmptyProps = @()
+        $allProps = $Results[0].PSObject.Properties.Name
+        foreach ($prop in $allProps) {
+            foreach ($row in $Results) {
+                $val = $row.PSObject.Properties[$prop].Value
+                if ($null -ne $val -and $val -ne '' -and $val -ne ' ') {
+                    $nonEmptyProps += $prop
+                    break
+                }
+            }
+        }
+        $Results | Sort-Object 'DisplayName' | Select-Object -Property ($Headers | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $Path -NoTypeInformation
+    } else {
+        $Results | Export-Csv -Path $Path -NoTypeInformation
+    }
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
+}
+
 #endregion
 
 #region Prep and Output Path Setup
@@ -212,33 +241,6 @@ if (-not (Test-Path -Path $OutputDirectory)) {
 }
 $ExportCSV = Join-Path -Path $OutputDirectory -ChildPath $OutputFileName
 $Results = @()
-
-if (-not $IncludeEmptyColumns) {
-    $orderedHeaders = @('DisplayName', 'Description', 'State', 'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups', 'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users', 'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level', 'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform', 'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator', 'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value', 'Created Date Time', 'Modified Date Time')
-    $nonEmptyProps = @()
-    $allProps = $Results[0].PSObject.Properties.Name
-
-    foreach ($prop in $allProps) {
-        $hasValue = $false
-        foreach ($row in $Results) {
-            $val = $row.$prop
-            if ($null -ne $val -and $val -ne '' -and $val -ne ' ') {
-                $hasValue = $true
-                break
-            }
-        }
-        if ($hasValue) {
-            $nonEmptyProps += $prop
-        }
-    }
-
-    $Results | Sort-Object 'DisplayName' | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
-    Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
-} else {
-    $orderedHeaders = @('DisplayName', 'Description', 'State', 'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups', 'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users', 'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level', 'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform', 'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator', 'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value', 'Created Date Time', 'Modified Date Time')
-    $Results | Select-Object -Property $orderedHeaders | Export-Csv -Path $ExportCSV -NoTypeInformation
-    Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
-}
 
 #endregion
 
@@ -391,7 +393,7 @@ $AllPolicies | ForEach-Object {
 
     # --- Grant Controls Block ---
     # Evaluate grant control settings and operator
-    $GrantControls = $_.GrantControls.BuiltInControls -join ","
+    $GrantControls = Join-Array $_.GrantControls.BuiltInControls
     $GrantControlsOperator = $_.GrantControls.Operator
     $GrantControlsAuthStrength = $_.GrantControls.GrantControlsAuthStrength.DisplayName
 
@@ -455,34 +457,29 @@ $AllPolicies | ForEach-Object {
 #endregion
 
 #region Final Output and Export
+# Define export column order (must match keys in $Result)
+$orderedHeaders = @(
+    'DisplayName', 'Description', 'Created Date Time', 'Modified Date Time',
+    'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
+    'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users',
+    'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level',
+    'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform',
+    'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator',
+    'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security',
+    'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value',
+    'State'
+)
+
 # Finalize and export the filtered policy data to CSV, optionally pruning empty columns
 if ($Results.Count -eq 0) {
     Write-Host "No data found for the given criteria."
 } else {
-    if (-not $IncludeEmptyColumns) {
-        $allProps = $Results[0].PSObject.Properties.Name
-        $nonEmptyProps = @()
-        foreach ($prop in $allProps) {
-            $hasValue = $false
-            foreach ($row in $Results) {
-                if ($null -ne $row.PSObject.Properties[$prop].Value -and $row.PSObject.Properties[$prop].Value -ne '' -and $row.PSObject.Properties[$prop].Value -ne ' ') {
-                    $hasValue = $true
-                    break
-                }
-            }
-            if ($hasValue) {
-                $nonEmptyProps += $prop
-            }
-        }
-        $Results | Sort-Object 'DisplayName' | Select-Object -Property ($orderedHeaders | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $ExportCSV -NoTypeInformation
-        Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
-    } else {
-        $Results | Export-Csv -Path $ExportCSV -NoTypeInformation
-        Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
-    }
+    Export-CaPolicyReport -Results $Results -Headers $orderedHeaders -Path $ExportCSV -IncludeEmptyColumns:$IncludeEmptyColumns
+
     Write-Host "The output file contains $($Results.Count) CA policies."
     if ((Test-Path -Path $ExportCSV) -eq $true) {
         Write-Host "The output file is available at: " -ForegroundColor Yellow
         Write-Host $ExportCSV
     }
 }
+
