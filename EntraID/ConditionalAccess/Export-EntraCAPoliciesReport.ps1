@@ -2,41 +2,55 @@
 .SYNOPSIS
     Export Conditional Access (CA) policies from Microsoft Entra ID (Azure AD) to a structured CSV file.
 .DESCRIPTION
-    This script connects to Microsoft Graph (Beta) to retrieve Conditional Access policy configurations
-    from Entra ID and exports them to a timestamped CSV file.
-
+    This script uses Microsoft Graph (beta) to extract Conditional Access policy configurations into a timestamped CSV report
+    for audit, compliance, and operational insight.
     Key Features:
-      • Filters: export only active, disabled, report-only, recently created, or recently modified policies
-      • Authentication: supports both delegated (interactive) and app-based (certificate) authentication
-      • Output: CSV with 30+ attributes; supports exclusion of empty columns
-      • Structure: modular functions, progress indicators, clean output formatting
-      • Hygiene: disconnects from Graph, suppresses output, respects automation use
-      • Standards: compliant with PowerShell 7.2+, Graph SDK, and internal scripting conventions
-
+      • Filters: Active, Disabled, Report-Only, recently created or modified
+      • Output: CSV file with 30+ core CA policy attributes
+      • Column handling: Optional exclusion of empty columns
+      • Authentication: Supports interactive and certificate-based Graph auth
+      • Progress: Includes progress bar with per-policy feedback (safe for divide-by-zero cases)
+      • Performance: Caches display names and uses optimized object creation
+      • Reliability: Verifies module presence and avoids redundant imports
+      • Hygiene: Disconnects from Graph after execution and suppresses disconnect output
+      • Verbose Mode: Uses [CmdletBinding()] with Write-Verbose for optional detailed output
+      • Standards: Aligns with PowerShell approved verbs, coding standards, and internal compliance rules
 .PARAMETER ActiveCAPoliciesOnly
-    Export only policies where State = Enabled.
+    Only include policies whose State is Enabled.
 .PARAMETER DisabledCAPoliciesOnly
-    Export only policies where State = Disabled.
+    Only include policies whose State is Disabled.
 .PARAMETER ReportOnlyMode
-    Export only policies where State = EnabledForReportingButNotEnforced.
+    Only include policies in report-only mode.
 .PARAMETER RecentlyCreatedCAPolicies
-    Export policies created within the last N days.
+    Include only policies created within the past N days.
 .PARAMETER RecentlyModifiedCAPolicies
-    Export policies modified within the last N days.
+    Include only policies modified within the past N days.
 .PARAMETER CreateSession
-    Disconnect any existing Graph session before connecting.
+    Force disconnection and re-authentication to Microsoft Graph.
 .PARAMETER TenantId
-    Azure AD tenant ID (GUID); used for app-only authentication.
+    Directory (tenant) ID for Graph auth (used with ClientId and CertificateThumbprint).
 .PARAMETER ClientId
-    Application (client) ID for Graph auth.
+    Application (client) ID for certificate-based Graph auth.
 .PARAMETER CertificateThumbprint
-    Certificate thumbprint used for app-only authentication.
+    Thumbprint of the certificate used for app-only authentication.
 .PARAMETER OutputDirectory
-    Folder where the CSV file will be saved (default: $PSScriptRoot\Output).
+    Directory path for the generated CSV file. Default: "$PSScriptRoot\Output"
 .PARAMETER OutputFileName
-    File name for the exported report (default includes timestamp).
+    File name for the output. Default: "CA_Policies_Report_<timestamp>.csv"
 .PARAMETER IncludeEmptyColumns
-    Include columns that have no data in any row.
+    Switch to include columns that are empty across all results.
+.PARAMETER Verbose
+    Enables detailed console output using Write-Verbose. Available because the script uses [CmdletBinding()].
+    Use -Verbose to turn on; default is off.
+.EXAMPLE
+    .\Export-EntraCAPoliciesReport.ps1
+    Exports all CA policies with default settings and minimal console output.
+.EXAMPLE
+    .\Export-EntraCAPoliciesReport.ps1 -ReportOnlyMode -Verbose
+    Exports only report-only policies and emits detailed progress and status messages.
+.EXAMPLE
+    .\Export-EntraCAPoliciesReport.ps1 -OutputDirectory 'D:\Reports' -OutputFileName 'CA_Policies.csv' -IncludeEmptyColumns
+    Exports to a custom path and includes columns that are empty across all rows.
 .NOTES
     Author: Travis McDade
     Last Updated: 08/08/2025
@@ -45,7 +59,9 @@
         Author: Kashyap Patel
         URL   : https://github.com/RapidScripter/export-conditional-access-policies
 Revision History:
-    1.0.0 – 08/08/2025 – Finalized for production: cleanup, refactor, export modularization, best practices
+    1.0.0 – 08/08/2025 – Production-ready version with CmdletBinding(), Write-Verbose conversion,
+                         module enforcement, property name corrections, improved progress handling,
+                         and Graph session cleanup.
     0.4.0 – 08/08/2025 – Refactor for efficiency, object creation, join-logic, header handling
     0.3.0 – 08/07/2025 – Column pruning and ordered header logic
     0.2.0 – 08/06/2025 – Progress integration and parameter enhancements
@@ -55,6 +71,7 @@ Revision History:
 #Requires -Version 7.2
 
 #region Parameters
+[CmdletBinding()]
 param
 (
     [switch]$ActiveCAPoliciesOnly,
@@ -81,7 +98,7 @@ foreach ($mod in $RequiredModules) {
         Write-Host "Module '$mod' not found. Installing..." -ForegroundColor Yellow
         Install-Module -Name $mod -Scope CurrentUser -Force -ErrorAction Stop -Confirm:$false
     } else {
-        Write-Host "Module '$mod' is already installed and available."
+        Write-Verbose "Module '$mod' is already installed and available."
     }
 }
 
@@ -103,9 +120,9 @@ foreach ($sub in $RequiredSubmodules) {
 #endregion
 
 #region Global Hash Caches
-$global:DirectoryObjsHash = @{}
-$global:ServicePrincipalsHash = @{}
-$global:NamedLocationHash = @{}
+$script:DirectoryObjsHash = @{}
+$script:ServicePrincipalsHash = @{}
+$script:NamedLocationHash = @{}
 
 #endregion
 
@@ -116,7 +133,7 @@ function Connect-MgGraphSession {
         Disconnect-MgGraph -ErrorAction SilentlyContinue
     }
 
-    Write-Host "Connecting to Microsoft Graph..."
+    Write-Verbose "Connecting to Microsoft Graph..."
 
     if ($TenantId -and $ClientId -and $CertificateThumbprint) {
         Connect-MgGraph -TenantId $TenantId -AppId $ClientId -CertificateThumbprint $CertificateThumbprint -NoWelcome
@@ -230,7 +247,7 @@ function Export-CaPolicyReport {
         }
         $Results | Sort-Object 'DisplayName' | Select-Object -Property ($Headers | Where-Object { $nonEmptyProps -contains $_ }) | Export-Csv -Path $Path -NoTypeInformation
     } else {
-        $Results | Export-Csv -Path $Path -NoTypeInformation
+        $Results | Sort-Object 'DisplayName' | Select-Object -Property $Headers | Export-Csv -Path $Path -NoTypeInformation
     }
     Write-Progress -Activity "Exporting Conditional Access Policies" -Completed
 }
@@ -274,7 +291,8 @@ $AllPolicies | ForEach-Object {
     $State = $_.State
 
     # Show progress bar for current policy being processed
-    Write-Progress -Activity "Exporting Conditional Access Policies" -Status "Processing: $DisplayName" -PercentComplete (($ProcessedCount / $total) * 100)
+    $percent = if ($total -gt 0) { [math]::Round(($ProcessedCount / $total) * 100) } else { 100 }
+    Write-Progress -Activity "Exporting Conditional Access Policies" -Status "Processing: $DisplayName" -PercentComplete $percent
 
     #Filter CA policies based on their State
     if ($ActiveCAPoliciesOnly.IsPresent -and $State -ne "Enabled") {
@@ -369,8 +387,8 @@ $AllPolicies | ForEach-Object {
 
     # --- Conditions Block ---
     # Evaluate risk levels, client apps, platforms, and locations
-    $UserRiskLevel = $_.Conditions.UserRiskLevelLevels
-    $SigninRiskLevel = $_.Conditions.SigninRiskLevelLevels
+    $UserRiskLevel = $_.Conditions.UserRiskLevels
+    $SigninRiskLevel = $_.Conditions.SignInRiskLevels
     $ClientAppTypes = $_.Conditions.ClientAppTypes
     $IncludeDevicePlatform = $_.Conditions.Platforms.IncludePlatforms
     $ExcludeDevicePlatform = $_.Conditions.Platforms.ExcludePlatforms
@@ -398,7 +416,7 @@ $AllPolicies | ForEach-Object {
     # Evaluate grant control settings and operator
     $GrantControls = Join-Array $_.GrantControls.BuiltInControls
     $GrantControlsOperator = $_.GrantControls.Operator
-    $GrantControlsAuthStrength = $_.GrantControls.GrantControlsAuthStrength.DisplayName
+    $GrantControlsAuthStrength = $_.GrantControls.AuthenticationStrength.DisplayName
 
     # --- Session Controls Block ---
     # Evaluate session controls like app restrictions and sign-in frequency
@@ -462,29 +480,21 @@ $AllPolicies | ForEach-Object {
 #region Final Output and Export
 # Define export column order (must match keys in $Result)
 $orderedHeaders = @(
-    'DisplayName', 'Description', 'Created Date Time', 'Modified Date Time',
-    'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups',
-    'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users',
-    'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level',
-    'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform',
-    'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator',
-    'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security',
-    'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value',
-    'State'
+    'DisplayName', 'Description', 'State', 'Include Users', 'Exclude Users', 'Include Groups', 'Exclude Groups', 'Include Roles', 'Exclude Roles', 'Include Guests or External Users', 'Exclude Guests or External Users', 'Include Applications', 'Exclude Applications', 'User Action', 'User Risk Level', 'Signin Risk Level', 'Client App Types', 'Include Device Platform', 'Exclude Device Platform', 'Include Locations', 'Exclude Locations', 'Grant Controls', 'Grant Controls Operator', 'Grant Controls Authentication Strength', 'App Enforced Restrictions Enabled', 'Cloud App Security', 'CAE Mode', 'Disable Resilience Defaults', 'Signin Frequency Enabled', 'Signin Frequency Value', 'Created Date Time', 'Modified Date Time'
 )
 
 # Finalize and export the filtered policy data to CSV, optionally pruning empty columns
 if ($Results.Count -eq 0) {
-    Write-Host "No data found for the given criteria."
+    Write-Warning "No data found for the given criteria."
 } else {
     Export-CaPolicyReport -Results $Results -Headers $orderedHeaders -Path $ExportCSV -IncludeEmptyColumns:$IncludeEmptyColumns
 
-    Write-Host "The output file contains $($Results.Count) CA policies."
+    Write-Verbose "The output file contains $($Results.Count) CA policies."
     if ((Test-Path -Path $ExportCSV) -eq $true) {
-        Write-Host "The output file is available at: " -ForegroundColor Yellow
+        Write-Verbose "The output file is available at: $ExportCSV"
         Write-Host $ExportCSV
     }
     # Clean up Microsoft Graph session
-    Write-Host "Disconnecting from Microsoft Graph..."
+    Write-Verbose "Disconnecting from Microsoft Graph..."
     Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
 }
