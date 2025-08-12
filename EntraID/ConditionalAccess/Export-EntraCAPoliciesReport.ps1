@@ -153,7 +153,7 @@ function ConvertTo-DirectoryObjectName {
                 }
             } catch {
                 Write-Host "Deleted object configured in the CA policy $DisplayName" -ForegroundColor Red
-                Write-Host "Processing CA policies..."
+                Write-Host "Continuing to next policy..." -ForegroundColor Gray
             }
         }
     }
