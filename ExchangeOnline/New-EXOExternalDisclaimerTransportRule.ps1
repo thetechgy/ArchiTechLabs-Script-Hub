@@ -24,18 +24,12 @@
     - Enforce: Normal operation (applies disclaimer)
     - Audit: Log matching messages without modifying them
     - AuditAndNotify: Log and send incident reports without modifying messages
-.PARAMETER AutoInstallModules
-    If set, missing required modules will be installed for the current user
-.PARAMETER AutoConnect
-    If set, automatically connect to Exchange Online if not already connected
 .EXAMPLE
     .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "Contoso Corp"
 .EXAMPLE
     .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "ACME" -Priority 2 -WhatIf
 .EXAMPLE
     .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "MyOrg" -Disabled
-.EXAMPLE
-    .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "ACME" -AutoInstallModules -AutoConnect
 .EXAMPLE
     .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "MyOrg" -Mode Audit
 .NOTES
@@ -87,12 +81,6 @@ param(
     [Parameter(HelpMessage = "Create the rule in disabled state (safer for testing)")]
     [switch]$Disabled,
 
-    [Parameter(HelpMessage = "If set, missing required modules will be installed for the current user")]
-    [switch]$AutoInstallModules,
-
-    [Parameter(HelpMessage = "If set, automatically connect to Exchange Online if not already connected")]
-    [switch]$AutoConnect,
-
     [Parameter(HelpMessage = "Transport rule Mode: Enforce | Audit | AuditAndNotify")]
     [ValidateSet('Enforce', 'Audit', 'AuditAndNotify')]
     [string]$Mode = 'Enforce'
@@ -111,16 +99,12 @@ function Install-RequiredModules {
 
     foreach ($Module in $ModuleNames) {
         if (-not (Get-Module -ListAvailable -Name $Module)) {
-            if ($AutoInstallModules) {
-                Write-Information "Installing required module: $Module" -InformationAction Continue
-                try {
-                    Install-Module -Name $Module -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop
-                    Write-Information "Successfully installed $Module" -InformationAction Continue
-                } catch {
-                    throw "Failed to install required module '$Module': $($_.Exception.Message)"
-                }
-            } else {
-                throw "Required module '$Module' is not installed. Rerun with -AutoInstallModules or install manually: Install-Module -Name $Module"
+            Write-Information "Installing required module: $Module" -InformationAction Continue
+            try {
+                Install-Module -Name $Module -Force -AllowClobber -Scope CurrentUser -ErrorAction Stop
+                Write-Information "Successfully installed $Module" -InformationAction Continue
+            } catch {
+                throw "Failed to install required module '$Module': $($_.Exception.Message). Please run 'Install-Module -Name $Module' manually or ensure you have appropriate permissions."
             }
         }
     }
@@ -134,16 +118,12 @@ function Test-ExchangeOnlineConnection {
         Get-OrganizationConfig -ErrorAction Stop | Out-Null
         Write-Verbose "Connected to Exchange Online"
     } catch {
-        if ($AutoConnect) {
-            Write-Information "Not connected to Exchange Online. Attempting to connect..." -InformationAction Continue
-            try {
-                Connect-ExchangeOnline -ErrorAction Stop
-                Write-Information "Successfully connected to Exchange Online" -InformationAction Continue
-            } catch {
-                throw "Failed to connect to Exchange Online automatically: $($_.Exception.Message). Try running Connect-ExchangeOnline manually."
-            }
-        } else {
-            throw "Not connected to Exchange Online. Run Connect-ExchangeOnline first, or use -AutoConnect to connect automatically."
+        Write-Information "Not connected to Exchange Online. Attempting to connect..." -InformationAction Continue
+        try {
+            Connect-ExchangeOnline -ErrorAction Stop
+            Write-Information "Successfully connected to Exchange Online" -InformationAction Continue
+        } catch {
+            throw "Failed to connect to Exchange Online: $($_.Exception.Message). Please ensure you have the necessary permissions and network connectivity."
         }
     }
 }
