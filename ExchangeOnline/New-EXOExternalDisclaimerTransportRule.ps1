@@ -17,8 +17,6 @@
     Transport rule priority (0 = highest). Default: 0
 .PARAMETER RuleName
     Transport rule name. Default: "Security – Inbound External – Prepend Disclaimer"
-.PARAMETER Remove
-    Remove the transport rule instead of creating/updating it
 .PARAMETER Disabled
     Create the rule in disabled state (safer for testing)
 .PARAMETER Mode
@@ -34,8 +32,6 @@
     .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "Contoso Corp"
 .EXAMPLE
     .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "ACME" -Priority 2 -WhatIf
-.EXAMPLE
-    .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "MyOrg" -Remove -Confirm
 .EXAMPLE
     .\New-EXOExternalDisclaimerTransportRule.ps1 -OrgPrefix "MyOrg" -Disabled
 .EXAMPLE
@@ -88,9 +84,6 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$RuleName = "Security – Inbound External – Prepend Disclaimer",
 
-    [Parameter(HelpMessage = "Remove the transport rule instead of creating/updating it")]
-    [switch]$Remove,
-
     [Parameter(HelpMessage = "Create the rule in disabled state (safer for testing)")]
     [switch]$Disabled,
 
@@ -140,14 +133,12 @@ function Test-ExchangeOnlineConnection {
     try {
         Get-OrganizationConfig -ErrorAction Stop | Out-Null
         Write-Verbose "Connected to Exchange Online"
-        return $true
     } catch {
         if ($AutoConnect) {
             Write-Information "Not connected to Exchange Online. Attempting to connect..." -InformationAction Continue
             try {
                 Connect-ExchangeOnline -ErrorAction Stop
                 Write-Information "Successfully connected to Exchange Online" -InformationAction Continue
-                return $true
             } catch {
                 throw "Failed to connect to Exchange Online automatically: $($_.Exception.Message). Try running Connect-ExchangeOnline manually."
             }
@@ -165,50 +156,23 @@ function Write-ScriptBanner {
         [string]$RuleName,
         [int]$Priority,
         [string]$Mode,
-        [switch]$Remove,
         [switch]$Disabled
     )
 
-    if ($Remove) {
-        Write-Information "MODE: Remove Rule" -InformationAction Continue
-    } else {
-        Write-Information "MODE: Deploy/Update Rule" -InformationAction Continue
-    }
-
+    Write-Information "MODE: Deploy/Update Rule" -InformationAction Continue
     Write-Information "Organization: $OrgPrefix" -InformationAction Continue
     Write-Information "Header Name: $HeaderName" -InformationAction Continue
     Write-Information "Rule Name: $RuleName" -InformationAction Continue
     Write-Information "Priority: $Priority" -InformationAction Continue
-    Write-Information "Rule State: $(if ($Disabled -and -not $Remove) { 'Disabled' } else { 'Enabled' })" -InformationAction Continue
+    Write-Information "Rule State: $(if ($Disabled) { 'Disabled' } else { 'Enabled' })" -InformationAction Continue
     Write-Information "Mode: $Mode" -InformationAction Continue
+    Write-Information "Duplicate Prevention: Enabled (via $HeaderName header)" -InformationAction Continue
 
-    $HeaderSafePrefix = $OrgPrefix -replace '\s+', '' -replace '[^A-Za-z0-9]', ''
-    if ($HeaderSafePrefix -match '^ATL$|^ATL') {
-        Write-Warning "Note: 'ATL' is ArchiTech Labs' prefix - consider using your org's name for clarity"
+    if ($Disabled) {
+        Write-Warning "Rule will be created in DISABLED state for safe testing"
     }
-
-    if (-not $Remove) {
-        Write-Information "Duplicate Prevention: Enabled (via $HeaderName header)" -InformationAction Continue
-        if ($Disabled) {
-            Write-Warning "Rule will be created in DISABLED state for safe testing"
-        }
-        if ($Mode -ne 'Enforce') {
-            Write-Information "Progressive Enforcement: Rule will run in $Mode mode (safer for initial rollout)" -InformationAction Continue
-        }
-    }
-}
-
-function Remove-ExternalDisclaimerRule {
-    [CmdletBinding()]
-    param([string]$RuleName)
-
-    $existing = Get-TransportRule -Identity $RuleName -ErrorAction SilentlyContinue
-
-    if ($existing) {
-        Remove-TransportRule -Identity $RuleName -Confirm:$false -ErrorAction Stop
-        Write-Information "Successfully removed transport rule: $RuleName" -InformationAction Continue
-    } else {
-        Write-Warning "Transport rule '$RuleName' does not exist - nothing to remove"
+    if ($Mode -ne 'Enforce') {
+        Write-Information "Progressive Enforcement: Rule will run in $Mode mode (safer for initial rollout)" -InformationAction Continue
     }
 }
 
@@ -262,7 +226,7 @@ Install-RequiredModules -ModuleNames @('ExchangeOnlineManagement')
 Test-ExchangeOnlineConnection
 
 # Display configuration banner
-Write-ScriptBanner -OrgPrefix $OrgPrefix -HeaderName $HeaderName -RuleName $RuleName -Priority $Priority -Mode $Mode -Remove:$Remove -Disabled:$Disabled
+Write-ScriptBanner -OrgPrefix $OrgPrefix -HeaderName $HeaderName -RuleName $RuleName -Priority $Priority -Mode $Mode -Disabled:$Disabled
 
 # Banner HTML content (using single-quoted here-string to prevent variable expansion)
 $BannerHtml = @'
@@ -296,27 +260,19 @@ $BannerHtml = @'
 </table>
 '@
 
-# Handle operations based on parameters
+# Deploy the rule
 try {
-    if ($Remove) {
-        if ($PSCmdlet.ShouldProcess($RuleName, "Remove transport rule")) {
-            Remove-ExternalDisclaimerRule -RuleName $RuleName
-        }
-    } else {
-        if ($PSCmdlet.ShouldProcess($RuleName, "Create/update transport rule")) {
-            New-ExternalDisclaimerRule -RuleName $RuleName -Priority $Priority -HeaderName $HeaderName -HeaderValue $HeaderValue -BannerHtml $BannerHtml -Mode $Mode -Disabled:$Disabled
-        }
+    if ($PSCmdlet.ShouldProcess($RuleName, "Create/update transport rule")) {
+        New-ExternalDisclaimerRule -RuleName $RuleName -Priority $Priority -HeaderName $HeaderName -HeaderValue $HeaderValue -BannerHtml $BannerHtml -Mode $Mode -Disabled:$Disabled
     }
 
     # Display completion message
-    if (-not $Remove) {
-        Write-Information "Configuration complete!" -InformationAction Continue
-        if ($Disabled) {
-            Write-Warning "The rule '$RuleName' is created but DISABLED. Enable it when ready to activate."
-            Write-Information "To enable: Set-TransportRule -Identity '$RuleName' -Enabled `$true" -InformationAction Continue
-        } else {
-            Write-Information "The rule '$RuleName' is now active with NO authentication exceptions." -InformationAction Continue
-        }
+    Write-Information "Configuration complete!" -InformationAction Continue
+    if ($Disabled) {
+        Write-Warning "The rule '$RuleName' is created but DISABLED. Enable it when ready to activate."
+        Write-Information "To enable: Set-TransportRule -Identity '$RuleName' -Enabled `$true" -InformationAction Continue
+    } else {
+        Write-Information "The rule '$RuleName' is now active with NO authentication exceptions." -InformationAction Continue
     }
 } catch {
     Write-Error "Failed to configure transport rule: $($_.Exception.Message)"
