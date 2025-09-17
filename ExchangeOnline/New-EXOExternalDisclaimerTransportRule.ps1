@@ -107,7 +107,7 @@ function Test-ExchangeOnlineConnection {
     catch {
         Write-Information "Not connected to Exchange Online. Attempting to connect..." -InformationAction Continue
         try {
-            Connect-ExchangeOnline -ErrorAction Stop
+            Connect-ExchangeOnline -ShowProgress:$false -ErrorAction Stop
             Write-Information "Successfully connected to Exchange Online" -InformationAction Continue
         }
         catch {
@@ -116,7 +116,7 @@ function Test-ExchangeOnlineConnection {
     }
 }
 
-function New-ExternalDisclaimerRule {
+function Set-ExternalDisclaimerRule {
     [CmdletBinding()]
     param(
         [string]$RuleName,
@@ -212,7 +212,7 @@ $BannerHtml = @'
 # Deploy the rule
 try {
     if ($PSCmdlet.ShouldProcess($RuleName, "Create/update transport rule")) {
-        New-ExternalDisclaimerRule -RuleName $RuleName -Priority $Priority -HeaderName $HeaderName -HeaderValue $HeaderValue -BannerHtml $BannerHtml -Disabled:$Disabled
+        Set-ExternalDisclaimerRule -RuleName $RuleName -Priority $Priority -HeaderName $HeaderName -HeaderValue $HeaderValue -BannerHtml $BannerHtml -Disabled:$Disabled
     }
 
     # Display completion message
