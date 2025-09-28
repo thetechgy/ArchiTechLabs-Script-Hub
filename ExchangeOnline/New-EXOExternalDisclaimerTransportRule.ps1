@@ -127,7 +127,7 @@ function Set-ExternalDisclaimerRule {
     $existing = Get-TransportRule -Identity $RuleName -ErrorAction SilentlyContinue
 
     $ruleParams = @{
-        Comments                           = "Appends disclaimer on all inbound external mail.`nAdds $HeaderName header to mark processing and prevent dupes.`nExceptions only via auth results (DKIM > SPF > Return-Path).`nFocused on accessibility, consistency, security, and usability."
+        Comments                           = "Appends disclaimer on all inbound external mail. Adds $HeaderName header to mark processing and prevent dupes. Exceptions only via auth results (DKIM > SPF > Return-Path). Focused on accessibility, consistency, security, and usability."
         Priority                           = $Priority
         FromScope                          = 'NotInOrganization'
         SentToScope                        = 'InOrganization'
