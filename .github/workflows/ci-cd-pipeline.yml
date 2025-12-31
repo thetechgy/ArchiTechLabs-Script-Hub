@@ -18,7 +18,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       # Install PSScriptAnalyzer
       - name: Install PSScriptAnalyzer
@@ -42,7 +42,7 @@ jobs:
   #   needs: lint-and-test
   #   if: github.ref == 'refs/heads/main'  # Only run for the main branch
   #   steps:
-  #     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+  #     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
   #
   #     # Package Scripts
   #     - name: Package Scripts
