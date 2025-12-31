@@ -6,11 +6,19 @@ on:
       - main
       - develop
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
 
       # Install PSScriptAnalyzer
       - name: Install PSScriptAnalyzer
@@ -34,7 +42,7 @@ jobs:
   #   needs: lint-and-test
   #   if: github.ref == 'refs/heads/main'  # Only run for the main branch
   #   steps:
-  #     - uses: actions/checkout@v2
+  #     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
   #
   #     # Package Scripts
   #     - name: Package Scripts
