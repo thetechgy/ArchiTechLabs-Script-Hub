@@ -1,0 +1,257 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".vscode/**"
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".vscode/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PSSA_VERSION: "1.24.0"
+  PESTER_VERSION: "5.7.1"
+
+jobs:
+  analyze:
+    name: PSScriptAnalyzer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Cache PowerShell modules (Linux)
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.local/share/powershell/Modules
+          key: linux-psmodules-pssa-${{ env.PSSA_VERSION }}
+          restore-keys: |
+            linux-psmodules-
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $moduleName = 'PSScriptAnalyzer'
+          $requiredVersion = [Version]$env:PSSA_VERSION
+
+          $installed = Get-Module -ListAvailable -Name $moduleName | Where-Object { $_.Version -eq $requiredVersion }
+          if (-not $installed) {
+            Install-Module -Name $moduleName -RequiredVersion $requiredVersion.ToString() -Scope CurrentUser -Force -AllowClobber
+          }
+
+      - name: Run PSScriptAnalyzer (repo policy)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $settingsPath = Join-Path $PWD 'PSScriptAnalyzerSettings.psd1'
+          if (-not (Test-Path $settingsPath)) { throw "Settings file not found at $settingsPath" }
+
+          $targets = @(
+            'modules'
+            'scripts'
+            'automation/runbooks'
+          ) | Where-Object { Test-Path $_ }
+
+          if (-not $targets) {
+            Write-Host "No analyzer targets found; skipping."
+            exit 0
+          }
+
+          $results = foreach ($t in $targets) {
+            Invoke-ScriptAnalyzer -Path $t -Recurse -Settings $settingsPath
+          }
+
+          if ($results) {
+            $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize
+            throw "PSScriptAnalyzer found $($results.Count) issue(s)."
+          }
+
+  test_ps51:
+    name: Pester (Windows PowerShell 5.1)
+    runs-on: windows-2022
+    timeout-minutes: 20
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Cache PowerShell modules (Windows)
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~\Documents\PowerShell\Modules
+          key: windows-psmodules-pester-${{ env.PESTER_VERSION }}
+          restore-keys: |
+            windows-psmodules-
+
+      - name: Install Pester
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $moduleName = 'Pester'
+          $requiredVersion = [Version]$env:PESTER_VERSION
+
+          $installed = Get-Module -ListAvailable -Name $moduleName | Where-Object { $_.Version -eq $requiredVersion }
+          if (-not $installed) {
+            Install-Module -Name $moduleName -RequiredVersion $requiredVersion.ToString() -Scope CurrentUser -Force -AllowClobber
+          }
+
+      - name: Run Pester
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $resultsPath = Join-Path $env:GITHUB_WORKSPACE 'Output\TestResults'
+          New-Item -ItemType Directory -Path $resultsPath -Force | Out-Null
+          $outFile = Join-Path $resultsPath 'PesterResults_WindowsPowerShell-5.1.xml'
+
+          Import-Module Pester -RequiredVersion $env:PESTER_VERSION -Force
+
+          $paths = @()
+
+          # Module tests: modules/**/Tests
+          $moduleTests = Get-ChildItem -Path 'modules' -Directory -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq 'Tests' } |
+            ForEach-Object { $_.FullName }
+          if ($moduleTests) { $paths += $moduleTests }
+
+          # Script tests: scripts/**/Tests
+          $scriptTests = Get-ChildItem -Path 'scripts' -Directory -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq 'Tests' } |
+            ForEach-Object { $_.FullName }
+          if ($scriptTests) { $paths += $scriptTests }
+
+          if (-not $paths) {
+            Write-Host 'No Pester tests found (modules/**/Tests or scripts/**/Tests). Skipping.'
+            exit 0
+          }
+
+          $config = [PesterConfiguration]::Default
+          $config.Run.Path = $paths
+          $config.Run.PassThru = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputFormat = 'JUnitXml'
+          $config.TestResult.OutputPath = $outFile
+
+          $result = Invoke-Pester -Configuration $config
+          if ($result.FailedCount -gt 0) { throw "Pester failures: $($result.FailedCount)" }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: pester-results-windows-ps51
+          path: Output/TestResults/*.xml
+          retention-days: 14
+          if-no-files-found: warn
+
+  test_pwsh7:
+    name: Pester (PowerShell 7)
+    runs-on: windows-2022
+    timeout-minutes: 20
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Cache PowerShell modules (Windows)
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~\Documents\PowerShell\Modules
+          key: windows-psmodules-pester-${{ env.PESTER_VERSION }}
+          restore-keys: |
+            windows-psmodules-
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $moduleName = 'Pester'
+          $requiredVersion = [Version]$env:PESTER_VERSION
+
+          $installed = Get-Module -ListAvailable -Name $moduleName | Where-Object { $_.Version -eq $requiredVersion }
+          if (-not $installed) {
+            Install-Module -Name $moduleName -RequiredVersion $requiredVersion.ToString() -Scope CurrentUser -Force -AllowClobber
+          }
+
+      - name: Run Pester
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $resultsPath = Join-Path $env:GITHUB_WORKSPACE 'Output/TestResults'
+          New-Item -ItemType Directory -Path $resultsPath -Force | Out-Null
+          $outFile = Join-Path $resultsPath 'PesterResults_PowerShell-7.xml'
+
+          Import-Module Pester -RequiredVersion $env:PESTER_VERSION -Force
+
+          $paths = @()
+
+          # Module tests: modules/**/Tests
+          $moduleTests = Get-ChildItem -Path 'modules' -Directory -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq 'Tests' } |
+            ForEach-Object { $_.FullName }
+          if ($moduleTests) { $paths += $moduleTests }
+
+          # Script tests: scripts/**/Tests
+          $scriptTests = Get-ChildItem -Path 'scripts' -Directory -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq 'Tests' } |
+            ForEach-Object { $_.FullName }
+          if ($scriptTests) { $paths += $scriptTests }
+
+          if (-not $paths) {
+            Write-Host 'No Pester tests found (modules/**/Tests or scripts/**/Tests). Skipping.'
+            exit 0
+          }
+
+          $config = [PesterConfiguration]::Default
+          $config.Run.Path = $paths
+          $config.Run.PassThru = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputFormat = 'JUnitXml'
+          $config.TestResult.OutputPath = $outFile
+
+          $result = Invoke-Pester -Configuration $config
+          if ($result.FailedCount -gt 0) { throw "Pester failures: $($result.FailedCount)" }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: pester-results-windows-pwsh7
+          path: Output/TestResults/*.xml
+          retention-days: 14
+          if-no-files-found: warn
