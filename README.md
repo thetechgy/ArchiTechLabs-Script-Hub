@@ -1,3 +1,5 @@
 # ArchiTechLabs Script Hub
 
-![Build Status](https://img.shields.io/github/workflow/status/thetechgy/ArchiTechLabs-Script-Hub/PowerShell%20CI%2FCD%20Pipeline)
+[![CI](https://github.com/thetechgy/ArchiTechLabs-Script-Hub/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/thetechgy/ArchiTechLabs-Script-Hub/actions/workflows/ci.yml)
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025e8c?logo=dependabot)](https://github.com/thetechgy/ArchiTechLabs-Script-Hub//network/updates)
+[![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-2671E5)](#requirements)

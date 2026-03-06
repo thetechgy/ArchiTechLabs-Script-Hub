@@ -1,18 +1,89 @@
-**/Output/**/*.log
-**/Output/**/*.csv
-**/Output/**/*.json
-**/Output/**/*.txt
-**/Logs/**
-*.log
+# ----------------------------
+# OS Specific (Windows)
+# ----------------------------
+Thumbs.db
+Desktop.ini
 
+# ----------------------------
+# VS Code (track team config only)
+# ----------------------------
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 
-*.zip
-artifacts/
-build/
+.vscode-server/
+*.code-workspace.user
 
-Thumbs.db
-.DS_Store
-*.ps1xml
+# ----------------------------
+# PowerShell
+# ----------------------------
+# PSScriptAnalyzer user overrides
+PSScriptAnalyzerSettings.psd1.user
+
+# Transcripts
+PowerShell_transcript*.txt
+
+# Extension/cache byproducts
+*.ps1.cache
+*.psd1.cache
+*.psm1.cache
+
+# ----------------------------
+# Pester / Test output
+# ----------------------------
+**/TestResults/
+testResults.xml
+*.TestResults.xml
+*.trx
+*.nunit.xml
+*.junit.xml
+
+# Coverage outputs
+coverage.xml
+**/coverage*/
+codecoverage*.xml
+*.cobertura.xml
+
+# Pester cache
+.pester/
+
+# ----------------------------
+# Build / artifact output
+# ----------------------------
+Output/
+Logs/
+Reports/
+
+# ----------------------------
+# Logs (generic)
+# ----------------------------
+*.log
+
+# ----------------------------
+# Secrets & Credentials (local-only)
+# ----------------------------
+.env
+.env.*
+.env.local
+.env.*.local
+
+*.secrets.json
+*.private.json
+*-credentials.json
+*.azureauth
+
+sp-*.json
+ServicePrincipal.json
+
+# ----------------------------
+# Temporary & editor junk
+# ----------------------------
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+*.orig
+*.rej

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+  "name": "PowerShell Dev Container (Wolfi)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "PS_VERSION": "7.5.4",
+      "PESTER_VERSION": "5.7.1",
+      "PSSA_VERSION": "1.24.0",
+      "ENABLE_AI_TOOLS": "true"
+    }
+  },
+  "remoteUser": "vscode",
+  "init": true,
+  "updateRemoteUserUID": true,
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer,target=/workspace/.devcontainer,type=bind,readonly"
+  ],
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+  "runArgs": [
+    "--security-opt=no-new-privileges",
+    "--cap-drop=ALL",
+    "--cap-add=DAC_OVERRIDE"
+  ],
+  "containerEnv": {
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "POWERSHELL_TELEMETRY_OPTOUT": "1",
+    "USE_BUILTIN_RIPGREP": "0"
+  },
+  "postCreateCommand": "pwsh -NoProfile -Command '$ErrorActionPreference = \"Stop\"; $requiredPester = [Version]\"5.7.1\"; $requiredPssa = [Version]\"1.24.0\"; Import-Module Pester -RequiredVersion $requiredPester -Force; Import-Module PSScriptAnalyzer -RequiredVersion $requiredPssa -Force; $pesterVersion = (Get-Module -Name Pester).Version; $pssaVersion = (Get-Module -Name PSScriptAnalyzer).Version; if ($pesterVersion -ne $requiredPester) { throw \"Expected Pester $requiredPester but found $pesterVersion\" }; if ($pssaVersion -ne $requiredPssa) { throw \"Expected PSScriptAnalyzer $requiredPssa but found $pssaVersion\" }; Write-Host (\"pwsh: \" + $PSVersionTable.PSVersion); Write-Host (\"Pester: \" + $pesterVersion); Write-Host (\"PSScriptAnalyzer: \" + $pssaVersion)'",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "pwsh"
+      }
+    }
+  }
+}

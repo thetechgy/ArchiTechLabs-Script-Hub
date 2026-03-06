@@ -1,16 +1,13 @@
 {
-  "recommendations": [
-    "ms-vscode.powershell",
-    "eamodio.gitlens",
-    "editorconfig.editorconfig",
-    "pspester.pester-test",
-    "yzhang.markdown-all-in-one",
-    "redhat.vscode-yaml",
-    "mutantdino.resourcemonitor",
-    "zainchen.json",
-    "janisdd.vscode-edit-csv",
-    "dotjoshjohnson.xml",
-    "IBM.output-colorizer",
-    "davidanson.vscode-markdownlint"
-  ]
+    "recommendations": [
+        "ms-vscode.PowerShell",
+        "pspester.pester-test",
+        "github.vscode-github-actions",
+        "GitHub.vscode-pull-request-github",
+        "EditorConfig.EditorConfig",
+        "redhat.vscode-yaml",
+        "DavidAnson.vscode-markdownlint",
+        "streetsidesoftware.code-spell-checker",
+        "PKief.material-icon-theme"
+    ]
 }

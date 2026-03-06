@@ -1,7 +1,22 @@
-* text=auto
-*.ps1 text eol=lf
-*.md text
-*.log binary
-*.csv text
-*.json text
-*.zip binary
+# Normalize all text to LF
+* text=auto eol=lf
+
+# Windows batch scripts
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+
+# Common binaries
+*.zip  binary
+*.7z   binary
+*.tar  binary
+*.gz   binary
+*.rar  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+
+# SVG is text-based
+*.svg  text eol=lf

@@ -1,0 +1,26 @@
+# Conservative allowlist for low-risk, high-frequency commands.
+prefix_rule(pattern=["git", "status"], decision="allow")
+prefix_rule(pattern=["git", "diff"], decision="allow")
+prefix_rule(pattern=["git", "log"], decision="allow")
+prefix_rule(pattern=["git", "show"], decision="allow")
+prefix_rule(pattern=["git", "rev-parse"], decision="allow")
+prefix_rule(pattern=["git", "branch", "--show-current"], decision="allow")
+prefix_rule(pattern=["git", "ls-files"], decision="allow")
+
+# Shared repo validation workflow.
+prefix_rule(pattern=["pwsh", "-NoProfile", "-File", ".\\Invoke-RepoChecks.ps1"], decision="allow")
+prefix_rule(pattern=["pwsh", "-NoProfile", "-File", "./Invoke-RepoChecks.ps1"], decision="allow")
+prefix_rule(pattern=["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\\Invoke-RepoChecks.ps1"], decision="allow")
+prefix_rule(pattern=["powershell", "-NoProfile", "-File", ".\\Invoke-RepoChecks.ps1"], decision="allow")
+prefix_rule(pattern=["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\\Invoke-RepoChecks.ps1"], decision="allow")
+
+# Direct analyzer/test commandlets in both PowerShell 7 and Windows PowerShell.
+prefix_rule(pattern=["pwsh", "-NoProfile", "-Command", "Invoke-ScriptAnalyzer"], decision="allow")
+prefix_rule(pattern=["powershell", "-NoProfile", "-Command", "Invoke-ScriptAnalyzer"], decision="allow")
+prefix_rule(pattern=["pwsh", "-NoProfile", "-Command", "Invoke-Pester"], decision="allow")
+prefix_rule(pattern=["powershell", "-NoProfile", "-Command", "Invoke-Pester"], decision="allow")
+
+# Hard blocks for destructive patterns that should never auto-run.
+prefix_rule(pattern=["git", "reset", "--hard"], decision="forbidden")
+prefix_rule(pattern=["git", "clean", "-fdx"], decision="forbidden")
+prefix_rule(pattern=["rm", "-rf"], decision="forbidden")

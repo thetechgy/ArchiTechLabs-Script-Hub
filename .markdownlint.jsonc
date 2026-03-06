@@ -1,0 +1,10 @@
+{
+  // Keep defaults on; selectively relax rules that commonly create noise.
+  "default": true,
+  // Line length: off (consistent with .editorconfig for Markdown)
+  "MD013": false,
+  // Inline HTML: allow (badges, tables, <br>, details/summary)
+  "MD033": false,
+  // First line heading: allow (badges/front-matter/title blocks)
+  "MD041": false
+}

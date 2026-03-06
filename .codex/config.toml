@@ -1,0 +1,45 @@
+model = "gpt-5.3-codex"
+model_reasoning_effort = "high"
+model_verbosity = "high"
+
+approval_policy = "untrusted"
+sandbox_mode = "workspace-write"
+allow_login_shell = false
+
+cli_auth_credentials_store = "auto"
+web_search = "live"
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+
+[shell_environment_policy]
+inherit = "core"
+ignore_default_excludes = false
+
+[sandbox_workspace_write]
+network_access = false
+
+[history]
+persistence = "save-all"
+max_bytes = 5242880
+
+# Profiles are currently experimental in Codex docs.
+[profiles.ci_safe]
+model = "gpt-5.3-codex"
+model_reasoning_effort = "high"
+model_verbosity = "medium"
+approval_policy = "never"
+sandbox_mode = "read-only"
+allow_login_shell = false
+web_search = "disabled"
+
+[profiles.ci_safe.shell_environment_policy]
+inherit = "core"
+ignore_default_excludes = false
+
+[profiles.ci_safe.history]
+persistence = "none"
