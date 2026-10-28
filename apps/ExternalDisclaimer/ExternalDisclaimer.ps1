@@ -21,7 +21,7 @@ New-UDApp -Title 'ArchiTech Labs | External email banner' -HeaderColor '#ffffff'
                 alignItems = 'start'
             }
         } -Content {
-            New-UDPaper -Width '100%' -Height 'auto' -Style @{ padding = '24px'; boxSizing = 'border-box' } -Children {
+            New-UDPaper -Width '100%' -Height 'auto' -Style @{ display = 'flex'; flexDirection = 'column'; alignItems = 'stretch'; gap = '16px'; padding = '24px'; margin = 0; width = '100%'; maxWidth = '100%'; minWidth = 0; boxSizing = 'border-box' } -Children {
                 $defaults = $Session:ExternalDisclaimerPreview
                 if ($null -eq $defaults) {
                     $defaults = Get-ExternalDisclaimerPreview -OrgPrefix 'Contoso Corp'
@@ -62,9 +62,9 @@ New-UDApp -Title 'ArchiTech Labs | External email banner' -HeaderColor '#ffffff'
                 if ($null -eq $preview) {
                     $preview = Get-ExternalDisclaimerPreview -OrgPrefix 'Contoso Corp'
                 }
-                New-UDPaper -Width '100%' -Height 'auto' -Style @{ padding = '24px'; boxSizing = 'border-box'; minWidth = 0 } -Children {
+                New-UDPaper -Width '100%' -Height 'auto' -Style @{ display = 'flex'; flexDirection = 'column'; alignItems = 'stretch'; gap = '16px'; padding = '24px'; margin = 0; width = '100%'; maxWidth = '100%'; minWidth = 0; boxSizing = 'border-box' } -Children {
                     New-UDElement -Tag 'h2' -Content { 'Preview' }
-                    New-UDElement -Tag 'div' -Attributes @{ role = 'status'; 'aria-live' = 'polite'; 'aria-atomic' = 'true' } -Content {
+                    New-UDElement -Tag 'div' -Attributes @{ role = 'status'; 'aria-live' = 'polite'; 'aria-atomic' = 'true'; style = @{ display = 'flex'; flexDirection = 'column'; gap = '8px' } } -Content {
                         New-UDTypography -Text "Proposed state: $($preview.RuleState) | Priority: $($preview.Priority)"
                         New-UDTypography -Text "Processing header: $($preview.HeaderName) = Applied" -Style @{ overflowWrap = 'anywhere' }
                     }
