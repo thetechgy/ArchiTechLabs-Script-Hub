@@ -1,5 +1,2 @@
-New-PSUApp -Name 'External Email Banner POC' `
-    -BaseUrl '/external-email-banner' `
-    -FilePath 'apps/ExternalDisclaimer/ExternalDisclaimer.ps1' `
-    -Description 'Preview the external email banner and review transport rule parameters without changing Exchange.' `
-    -Authenticated
+﻿New-PSUApp -Name 'External Email Banner POC' -FilePath 'apps/ExternalDisclaimer/ExternalDisclaimer.ps1' -BaseUrl '/external-email-banner' -Authenticated -Description 'Preview the external email banner and review transport rule parameters without changing Exchange.' 
+New-PSUApp -Name 'Service Portal Preview' -FilePath 'dashboards\Service Portal Preview\Service Portal Preview.ps1' -BaseUrl '/service-portal' -Environment 'PowerShell 7' -Authenticated -AutoDeploy -Description 'Visual service catalog with sample reports, script forms, and banner previews. No live script execution.'
